@@ -26,21 +26,12 @@ var (
 	flagStatus   []string
 	flagMethod   string
 	flagPath     string
-	flagHost     string
-	flagMinLat   float64
-	flagMaxLat   float64
-	flagMinSize  int64
-	flagMaxSize  int64
-	flagRemoteIP string
-	flagFile     string
 	flagTop      int
-	flagTopBy    string
 	flagFormat   string
 	flagFollow   bool
 	flagK8sNS    string
 	flagInterval string
-	flagInit     bool
-	flagWatch bool
+	flagWatch    bool
 )
 
 var rootCmd = &cobra.Command{
@@ -87,20 +78,11 @@ func init() {
 	flags.StringArrayVarP(&flagStatus, "status", "s", nil, "Filter by status code (e.g. -s 200,404)")
 	flags.StringVarP(&flagMethod, "method", "m", "", "Filter by HTTP method")
 	flags.StringVarP(&flagPath, "path", "p", "", "Filter by path (glob: /api/*)")
-	flags.StringVarP(&flagHost, "host", "", "", "Filter by host")
-	flags.Float64VarP(&flagMinLat, "min-latency", "", 0, "Minimum latency (s)")
-	flags.Float64VarP(&flagMaxLat, "max-latency", "", 0, "Maximum latency (s)")
-	flags.Int64VarP(&flagMinSize, "min-size", "", 0, "Minimum response size (bytes)")
-	flags.Int64VarP(&flagMaxSize, "max-size", "", 0, "Maximum response size (bytes)")
-	flags.StringVarP(&flagRemoteIP, "remote-ip", "", "", "Filter by remote IP")
-	flags.StringVarP(&flagFile, "file", "", "", "Read from file (overrides config)")
 	flags.IntVarP(&flagTop, "top", "t", 10, "Show top N (0 to disable)")
-	flags.StringVarP(&flagTopBy, "top-by", "", "path,ip,ua", "Top sections: path,ip,ua,method,status,host")
 	flags.StringVarP(&flagFormat, "format", "f", "table", "Output format: table, json, csv")
 	flags.BoolVarP(&flagFollow, "follow", "F", false, "Follow new logs in real time")
 	flags.StringVarP(&flagK8sNS, "namespace", "n", "", "Kubernetes namespace")
 	flags.StringVarP(&flagInterval, "interval", "i", "", "Aggregation interval (e.g. 5m, 1h)")
-	flags.BoolVarP(&flagInit, "init", "", false, "Generate config template")
 	flags.BoolVarP(&flagWatch, "watch", "w", false, "Live dashboard (RPS, top IP, status)")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
@@ -131,10 +113,6 @@ func addHiddenCompletionCmd() {
 }
 
 func runAnalysis(cmd *cobra.Command, args []string) error {
-	if flagInit {
-		return runInit()
-	}
-
 	sources := resolveSources(args)
 
 	filters, err := buildFilters()
@@ -166,18 +144,9 @@ func runAnalysis(cmd *cobra.Command, args []string) error {
 	return runOnceMode(ctx, sources, filters)
 }
 
-func runInit() error {
-	path := config.LocalConfigPath()
-	if err := config.CreateDefault(path); err != nil {
-		return fmt.Errorf("create config: %w", err)
-	}
-	fmt.Fprintf(os.Stderr, "config created: %s\n", path)
-	return nil
-}
-
 func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.Filters) error {
 	engine := analysis.New(filters)
-	sections := parseTopSections(flagTopBy)
+	sections := types.DefaultTopSections()
 	var parseErrors, processed int64
 
 	for _, src := range sources {
@@ -214,7 +183,7 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 
 func runFollowMode(ctx context.Context, sources []types.LogSource, filters types.Filters) error {
 	engine := analysis.New(filters)
-	sections := parseTopSections(flagTopBy)
+	sections := types.DefaultTopSections()
 	last := time.Now()
 
 	for _, src := range sources {
@@ -243,7 +212,7 @@ func runFollowMode(ctx context.Context, sources []types.LogSource, filters types
 func runIntervalMode(ctx context.Context, sources []types.LogSource, filters types.Filters, interval time.Duration) error {
 	var current time.Time
 	var engine *analysis.Engine
-	sections := parseTopSections(flagTopBy)
+	sections := types.DefaultTopSections()
 	initial := true
 
 	for _, src := range sources {
@@ -362,39 +331,12 @@ func resolveSources(args []string) []types.LogSource {
 	if len(args) > 0 {
 		return parseSources(args)
 	}
-	if flagFile != "" {
-		return []types.LogSource{reader.ParseSource(flagFile)}
-	}
 	cfg, cfgPath, err := config.Load()
 	if err == nil && cfg != nil && cfg.Source != "" {
 		fmt.Fprintf(os.Stderr, "using config: %s\n", cfgPath)
 		return []types.LogSource{reader.ParseSource(cfg.Source)}
 	}
 	return []types.LogSource{{Type: types.SourceStdin}}
-}
-
-func parseTopSections(s string) types.TopSections {
-	if s == "" {
-		return types.DefaultTopSections()
-	}
-	var sec types.TopSections
-	for _, f := range strings.Split(s, ",") {
-		switch strings.TrimSpace(f) {
-		case "path":
-			sec.Path = true
-		case "ip":
-			sec.IP = true
-		case "ua":
-			sec.UA = true
-		case "method":
-			sec.Method = true
-		case "status":
-			sec.Status = true
-		case "host":
-			sec.Host = true
-		}
-	}
-	return sec
 }
 
 func parseSources(args []string) []types.LogSource {
@@ -438,12 +380,6 @@ func buildFilters() (types.Filters, error) {
 	}
 	f.Method = flagMethod
 	f.PathGlob = flagPath
-	f.Host = flagHost
-	f.MinLatency = flagMinLat
-	f.MaxLatency = flagMaxLat
-	f.MinSize = flagMinSize
-	f.MaxSize = flagMaxSize
-	f.RemoteIP = flagRemoteIP
 	return f, nil
 }
 

@@ -73,17 +73,12 @@ caddy-analyze --path '/api/*' /var/log/caddy/access.log
 | `-s, --status` | | Filter by status code (e.g. `-s 200,404`) |
 | `-m, --method` | | Filter by HTTP method |
 | `-p, --path` | | Filter by path (glob: `/api/*`) |
-| `--host` | | Filter by host |
-| `--min-latency` | | Minimum latency in seconds |
-| `--max-latency` | | Maximum latency in seconds |
-| `--remote-ip` | | Filter by remote IP |
 | `-t, --top` | 10 | Show top N (0 to disable) |
 | `-f, --format` | table | Output: table, json, csv |
 | `-F, --follow` | | Follow new logs in real time |
 | `-n, --namespace` | | Kubernetes namespace |
 | `-i, --interval` | | Aggregation interval (5m, 1h) |
 | `-w, --watch` | | Live dashboard (RPS, top IP, status) |
-| `--init` | | Generate config template |
 
 ## Subcommands
 
