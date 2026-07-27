@@ -145,11 +145,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.uaItems = analysis.TopN(s.UserAgentCounts, 15)
 		m.refreshTables()
 
-		m.engine = analysis.New(types.Filters{})
-		if !s.EndTime.IsZero() {
-			m.engine.Stats().StartTime = s.EndTime
-		}
-
 		return m, tickEvery(2 * time.Second)
 	}
 
