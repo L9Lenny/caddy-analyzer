@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/lenny/caddy-analyzer/pkg/types"
 )
@@ -18,19 +19,27 @@ type LogReader interface {
 }
 
 func FromSource(src types.LogSource) LogReader {
+	return fromSource(src, false)
+}
+
+func FromSourceFollow(src types.LogSource) LogReader {
+	return fromSource(src, true)
+}
+
+func fromSource(src types.LogSource, follow bool) LogReader {
 	switch src.Type {
 	case types.SourceStdin:
 		return &StdinReader{}
 	case types.SourceFile:
-		return &FileReader{paths: expandPaths(src.Path)}
+		return &FileReader{paths: expandPaths(src.Path), follow: follow}
 	case types.SourceDocker:
 		return &DockerReader{container: src.Path}
 	case types.SourceK8s:
-		return &K8sReader{pod: src.Path, namespace: src.Namespace}
+		return &K8sReader{pod: src.Path, namespace: src.Namespace, follow: follow}
 	case types.SourceJournalctl:
 		return &JournalctlReader{unit: src.Path}
 	default:
-		return &FileReader{paths: expandPaths(src.Path)}
+		return &FileReader{paths: expandPaths(src.Path), follow: follow}
 	}
 }
 
@@ -88,7 +97,8 @@ func (r *StdinReader) Read(ctx context.Context) (<-chan string, error) {
 }
 
 type FileReader struct {
-	paths []string
+	paths  []string
+	follow bool
 }
 
 func (r *FileReader) Name() string {
@@ -103,8 +113,14 @@ func (r *FileReader) Read(ctx context.Context) (<-chan string, error) {
 	go func() {
 		defer close(out)
 		for _, path := range r.paths {
-			if err := readFileLines(ctx, path, out); err != nil {
-				fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+			if r.follow {
+				if err := readFileAndFollow(ctx, path, out); err != nil {
+					fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+				}
+			} else {
+				if err := readFileLines(ctx, path, out); err != nil {
+					fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+				}
 			}
 		}
 	}()
@@ -130,6 +146,57 @@ func readFileLines(ctx context.Context, path string, out chan<- string) error {
 	return scanner.Err()
 }
 
+func readFileAndFollow(ctx context.Context, path string, out chan<- string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	for scanner.Scan() {
+		select {
+		case out <- scanner.Text():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(f)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			for {
+				line, err := reader.ReadString('\n')
+				if len(line) > 0 {
+					line = strings.TrimRight(line, "\n")
+					select {
+					case out <- line:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+				if err != nil {
+					break
+				}
+			}
+
+			if _, err := f.Stat(); err != nil {
+				return nil
+			}
+		}
+	}
+}
+
 type DockerReader struct {
 	container string
 }
@@ -151,6 +218,7 @@ func (r *DockerReader) Read(ctx context.Context) (<-chan string, error) {
 type K8sReader struct {
 	pod       string
 	namespace string
+	follow    bool
 }
 
 func (r *K8sReader) Name() string {
@@ -164,6 +232,9 @@ func (r *K8sReader) Name() string {
 func (r *K8sReader) Read(ctx context.Context) (<-chan string, error) {
 	out := newLineChannel(ctx)
 	args := []string{"logs", "--tail=-1"}
+	if r.follow {
+		args = append(args, "--follow")
+	}
 	if r.namespace != "" {
 		args = append(args, "-n", r.namespace)
 	}

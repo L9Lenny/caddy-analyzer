@@ -291,7 +291,7 @@ func runIntervalMode(ctx context.Context, sources []types.LogSource, filters typ
 func runWatch(ctx context.Context, sources []types.LogSource) error {
 	linesCh := make(chan string, 10000)
 	for _, src := range sources {
-		r := reader.FromSource(src)
+		r := reader.FromSourceFollow(src)
 		lines, err := r.Read(ctx)
 		if err != nil {
 			return err

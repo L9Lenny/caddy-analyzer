@@ -89,7 +89,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 
 	linesCh := make(chan string, 10000)
 	for _, src := range sources {
-		r := reader.FromSource(src)
+		r := reader.FromSourceFollow(src)
 		lines, err := r.Read(ctx)
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", r.Name(), err)

@@ -16,6 +16,7 @@ import (
 
 type TickMsg time.Time
 type LineMsg string
+type StreamEndMsg struct{}
 
 type view int
 
@@ -72,7 +73,7 @@ func waitForLines(ch chan string) tea.Cmd {
 	return func() tea.Msg {
 		line, ok := <-ch
 		if !ok {
-			return nil
+			return StreamEndMsg{}
 		}
 		return LineMsg(line)
 	}
@@ -129,6 +130,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, waitForLines(m.linesCh)
 
+	case StreamEndMsg:
+		return m, nil
+
 	case TickMsg:
 		m.engine.Finalize()
 		s := m.engine.Stats()
@@ -138,20 +142,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			elapsed = 2
 		}
 		m.rps = float64(s.TotalRequests) / elapsed
-
 		m.uaItems = analysis.TopN(s.UserAgentCounts, 15)
+		m.refreshTables()
 
 		m.engine = analysis.New(types.Filters{})
 		if !s.EndTime.IsZero() {
 			m.engine.Stats().StartTime = s.EndTime
 		}
 
-		m.refreshTables()
-
-		return m, tea.Batch(
-			waitForLines(m.linesCh),
-			tickEvery(2*time.Second),
-		)
+		return m, tickEvery(2 * time.Second)
 	}
 
 	return m, nil
