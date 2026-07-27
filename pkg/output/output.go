@@ -11,6 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/lenny/caddy-analyzer/pkg/analysis"
 	"github.com/lenny/caddy-analyzer/pkg/types"
 )
@@ -21,6 +23,17 @@ const (
 	FormatTable Format = "table"
 	FormatJSON  Format = "json"
 	FormatCSV   Format = "csv"
+)
+
+var (
+	styleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	styleLabel   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
+	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	styleInfo    = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
+	styleSuspect = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
+	styleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 func ParseFormat(s string) Format {
@@ -86,79 +99,161 @@ func (r *Report) printTable() {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
-	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
+	useColor := r.useColor()
 
-	fmt.Fprintf(w, "Caddy Log Analysis Report\n")
-	fmt.Fprintf(w, "========================\n\n")
+	if useColor {
+		fmt.Fprintln(r.writer, styleHeader.Render("Caddy Log Analysis Report"))
+		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 40)))
+	} else {
+		fmt.Fprintln(r.writer, "Caddy Log Analysis Report")
+		fmt.Fprintln(r.writer, strings.Repeat("=", 40))
+	}
+	fmt.Fprintln(r.writer)
+
+	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
 
 	duration := "N/A"
 	if !s.EndTime.IsZero() && !s.StartTime.IsZero() {
 		duration = s.EndTime.Sub(s.StartTime).Round(time.Second).String()
 	}
-	fmt.Fprintf(w, "Period:\t%s — %s (%s)\n", formatTime(s.StartTime), formatTime(s.EndTime), duration)
-	fmt.Fprintf(w, "Total Requests:\t%d\n", total)
-	fmt.Fprintf(w, "Requests/sec:\t%.2f\n\n", r.engine.RPS())
 
-	fmt.Fprintf(w, "Status Codes:\n")
-	fmt.Fprintf(w, "  2xx:\t%d (%.1f%%)\n", s.Status2xx, pct(s.Status2xx, total))
-	fmt.Fprintf(w, "  3xx:\t%d (%.1f%%)\n", s.Status3xx, pct(s.Status3xx, total))
-	fmt.Fprintf(w, "  4xx:\t%d (%.1f%%)\n", s.Status4xx, pct(s.Status4xx, total))
-	fmt.Fprintf(w, "  5xx:\t%d (%.1f%%)\n", s.Status5xx, pct(s.Status5xx, total))
-	fmt.Fprintf(w, "  Errors (5xx):\t%d (%.1f%%)\n\n", s.Errors, pct(s.Errors, total))
+	label := fmt.Sprintf("%s:", "Period")
+	if useColor {
+		label = styleLabel.Render("Period:")
+	}
+	fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
 
-	fmt.Fprintf(w, "Response Size:\n")
-	fmt.Fprintf(w, "  Total:\t%s\n", formatBytes(s.TotalBytes))
-	fmt.Fprintf(w, "  Avg:\t%s\n\n", formatBytes(avgSize(s.TotalBytes, total)))
+	label = fmt.Sprintf("%s:", "Total Requests")
+	if useColor {
+		label = styleLabel.Render("Total Requests:")
+	}
+	fmt.Fprintf(w, "%s\t%d\n", label, total)
 
-	fmt.Fprintf(w, "Duration:\n")
-	fmt.Fprintf(w, "  Avg:\t%s\n", formatDuration(r.engine.AvgDuration()))
-	fmt.Fprintf(w, "  Min:\t%s\n", formatDuration(s.MinDuration))
-	fmt.Fprintf(w, "  Max:\t%s\n", formatDuration(s.MaxDuration))
-	fmt.Fprintf(w, "  P50:\t%s\n", formatDuration(s.Percentile50))
-	fmt.Fprintf(w, "  P95:\t%s\n", formatDuration(s.Percentile95))
-	fmt.Fprintf(w, "  P99:\t%s\n\n", formatDuration(s.Percentile99))
+	label = fmt.Sprintf("%s:", "Requests/sec")
+	if useColor {
+		label = styleLabel.Render("Requests/sec:")
+	}
+	fmt.Fprintf(w, "%s\t%.2f\n\n", label, r.engine.RPS())
+
+	statusLabel := "Status Codes"
+	if useColor {
+		statusLabel = styleLabel.Render("Status Codes")
+	}
+	fmt.Fprintf(w, "%s:\n", statusLabel)
+
+	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", styleOK.Render("2xx:"), s.Status2xx, pct(s.Status2xx, total))
+	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", styleInfo.Render("3xx:"), s.Status3xx, pct(s.Status3xx, total))
+	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", styleWarn.Render("4xx:"), s.Status4xx, pct(s.Status4xx, total))
+	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", styleError.Render("5xx:"), s.Status5xx, pct(s.Status5xx, total))
+
+	errStyle := styleOK
+	if s.Errors > 0 {
+		errStyle = styleError
+	}
+	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", errStyle.Render("Errors (5xx):"), s.Errors, pct(s.Errors, total))
+
+	szLabel := "Response Size"
+	if useColor {
+		szLabel = styleLabel.Render("Response Size")
+	}
+	fmt.Fprintf(w, "%s:\n", szLabel)
+	fmt.Fprintf(w, "  %s\t%s\n", "Total:", formatBytes(s.TotalBytes))
+	fmt.Fprintf(w, "  %s\t%s\n\n", "Avg:", formatBytes(avgSize(s.TotalBytes, total)))
+
+	durLabel := "Duration"
+	if useColor {
+		durLabel = styleLabel.Render("Duration")
+	}
+	fmt.Fprintf(w, "%s:\n", durLabel)
+	fmt.Fprintf(w, "  %s\t%s\n", "Avg:", formatDuration(r.engine.AvgDuration()))
+	fmt.Fprintf(w, "  %s\t%s\n", "Min:", formatDuration(s.MinDuration))
+	fmt.Fprintf(w, "  %s\t%s\n", "Max:", formatDuration(s.MaxDuration))
+	fmt.Fprintf(w, "  %s\t%s\n", "P50:", formatDuration(s.Percentile50))
+	fmt.Fprintf(w, "  %s\t%s\n", "P95:", formatDuration(s.Percentile95))
+	fmt.Fprintf(w, "  %s\t%s\n\n", "P99:", formatDuration(s.Percentile99))
 
 	if s.ParseErrors > 0 {
-		fmt.Fprintf(w, "Parse Errors:\t%d\n\n", s.ParseErrors)
+		fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
 	}
 
 	if r.detect && len(s.SuspiciousIPs) > 0 {
-		fmt.Fprintf(w, "Suspicious Activity Detected:\n")
+		susLabel := "Suspicious Activity Detected"
+		if useColor {
+			susLabel = styleError.Render("Suspicious Activity Detected")
+		}
+		fmt.Fprintf(w, "%s:\n", susLabel)
 		items := analysis.TopN(s.SuspiciousIPs, 20)
 		for _, item := range items {
-			fmt.Fprintf(w, "  ⚠ %-15s %d suspicious requests\n", item.Key, item.Count)
+			line := fmt.Sprintf("  ⚠ %-15s %d suspicious requests", item.Key, item.Count)
+			if useColor {
+				line = styleSuspect.Render(line)
+			}
+			fmt.Fprintf(w, "%s\n", line)
 		}
 		fmt.Fprintf(w, "\n")
 	}
 
 	if r.top > 0 {
 		if r.sections.Path {
-			fmt.Fprintf(w, "Top %d Paths:\n", r.top)
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d Paths", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d Paths:\n", r.top)
+			}
 			printTopN(w, analysis.TopN(s.PathCounts, r.top))
 		}
 		if r.sections.IP {
-			fmt.Fprintf(w, "\nTop %d Remote IPs:\n", r.top)
+			fmt.Fprintf(w, "\n")
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d Remote IPs", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d Remote IPs:\n", r.top)
+			}
 			printTopN(w, analysis.TopN(s.RemoteIPCounts, r.top))
 		}
 		if r.sections.UA {
-			fmt.Fprintf(w, "\nTop %d User Agents:\n", r.top)
+			fmt.Fprintf(w, "\n")
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d User Agents", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d User Agents:\n", r.top)
+			}
 			printTopN(w, analysis.TopN(s.UserAgentCounts, r.top))
 		}
 		if r.sections.Method {
-			fmt.Fprintf(w, "\nTop %d Methods:\n", r.top)
+			fmt.Fprintf(w, "\n")
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d Methods", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d Methods:\n", r.top)
+			}
 			printTopN(w, analysis.TopN(s.MethodCounts, r.top))
 		}
 		if r.sections.Status {
-			fmt.Fprintf(w, "\nTop %d Status Codes:\n", r.top)
+			fmt.Fprintf(w, "\n")
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d Status Codes", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d Status Codes:\n", r.top)
+			}
 			printTopIntN(w, analysis.TopNInt(s.StatusCounts, r.top))
 		}
 		if r.sections.Host {
-			fmt.Fprintf(w, "\nTop %d Hosts:\n", r.top)
+			fmt.Fprintf(w, "\n")
+			if useColor {
+				fmt.Fprintf(w, "%s:\n", styleLabel.Render(fmt.Sprintf("Top %d Hosts", r.top)))
+			} else {
+				fmt.Fprintf(w, "Top %d Hosts:\n", r.top)
+			}
 			printTopN(w, analysis.TopN(s.HostCounts, r.top))
 		}
 	}
 
 	w.Flush()
+}
+
+func (r *Report) useColor() bool {
+	return r.format == FormatTable && r.writer == os.Stdout
 }
 
 func (r *Report) printJSON() {
@@ -311,7 +406,7 @@ func formatBytes(b int64) string {
 func formatDuration(d float64) string {
 	switch {
 	case d < 0.001:
-		return fmt.Sprintf("%.0fµs", d*1_000_000)
+		return fmt.Sprintf("%.0f\xc2\xb5s", d*1_000_000)
 	case d < 1:
 		return fmt.Sprintf("%.2fms", d*1000)
 	case d < 60:

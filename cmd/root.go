@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/lenny/caddy-analyzer/pkg/analysis"
@@ -17,6 +18,7 @@ import (
 	"github.com/lenny/caddy-analyzer/pkg/output"
 	"github.com/lenny/caddy-analyzer/pkg/parser"
 	"github.com/lenny/caddy-analyzer/pkg/reader"
+	"github.com/lenny/caddy-analyzer/pkg/tui"
 	"github.com/lenny/caddy-analyzer/pkg/types"
 )
 
@@ -287,10 +289,6 @@ func runIntervalMode(ctx context.Context, sources []types.LogSource, filters typ
 }
 
 func runWatch(ctx context.Context, sources []types.LogSource) error {
-	engine := analysis.New(types.Filters{})
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
 	linesCh := make(chan string, 10000)
 	for _, src := range sources {
 		r := reader.FromSource(src)
@@ -309,57 +307,9 @@ func runWatch(ctx context.Context, sources []types.LogSource) error {
 		}()
 	}
 
-	fmt.Print("\033[2J")
-	fmt.Println(" Caddy Monitor (Ctrl+C to exit)")
-	fmt.Println(strings.Repeat("━", 50))
-
-	for {
-		select {
-		case line := <-linesCh:
-			entry, err := parser.Parse(line)
-			if err == nil && entry != nil {
-				engine.Process(entry)
-			}
-		case <-ticker.C:
-			engine.Finalize()
-			s := engine.Stats()
-			elapsed := s.EndTime.Sub(s.StartTime).Seconds()
-			if elapsed <= 0 {
-				elapsed = 2
-			}
-			rps := float64(s.TotalRequests) / elapsed
-
-			fmt.Printf("\033[4H\033[J")
-			fmt.Printf(" Requests: %d   RPS: %.1f   Errors: %d\n", s.TotalRequests, rps, s.Errors)
-			fmt.Printf(" Status: 2xx:%d  3xx:%d  4xx:%d  5xx:%d\n\n", s.Status2xx, s.Status3xx, s.Status4xx, s.Status5xx)
-
-			fmt.Printf(" Top IP:\n")
-			ips := analysis.TopN(s.RemoteIPCounts, 10)
-			for i, ip := range ips {
-				fmt.Printf("  %d. %-15s %s %d\n", i+1, ip.Key, bar(ip, ips), ip.Count)
-			}
-
-			engine = analysis.New(types.Filters{})
-			if !s.EndTime.IsZero() {
-				engine.Stats().StartTime = s.EndTime
-			}
-		case <-ctx.Done():
-			fmt.Println()
-			return nil
-		}
-	}
-}
-
-func bar(item types.CountItem, items []types.CountItem) string {
-	max := int64(20)
-	if len(items) > 0 && items[0].Count > 0 {
-		n := item.Count * max / items[0].Count
-		if n > max {
-			n = max
-		}
-		return "\033[44m" + strings.Repeat(" ", int(n)) + "\033[0m" + strings.Repeat(" ", int(max-n))
-	}
-	return strings.Repeat(" ", int(max))
+	p := tea.NewProgram(tui.NewModel(linesCh), tea.WithAltScreen())
+	_, err := p.Run()
+	return err
 }
 
 func resolveSources(args []string) []types.LogSource {
