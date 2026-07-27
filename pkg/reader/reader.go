@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,7 +167,11 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 		return err
 	}
 
-	reader := bufio.NewReader(f)
+	pos, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -175,6 +180,20 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			info, err := f.Stat()
+			if err != nil {
+				return nil
+			}
+			if info.Size() < pos {
+				pos = 0
+				if _, err := f.Seek(0, io.SeekStart); err != nil {
+					return err
+				}
+			} else if info.Size() == pos {
+				continue
+			}
+
+			reader := bufio.NewReader(f)
 			for {
 				line, err := reader.ReadString('\n')
 				if len(line) > 0 {
@@ -190,9 +209,7 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 				}
 			}
 
-			if _, err := f.Stat(); err != nil {
-				return nil
-			}
+			pos, _ = f.Seek(0, io.SeekCurrent)
 		}
 	}
 }
