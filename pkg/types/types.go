@@ -93,6 +93,8 @@ type Stats struct {
 	Status4xx        int64
 	Status5xx        int64
 
+	SuspiciousIPs map[string]int64
+
 	durations []float64
 }
 
@@ -135,6 +137,7 @@ func NewStats() *Stats {
 		RemoteAddrCounts: make(map[string]int64),
 		RemoteIPCounts:   make(map[string]int64),
 		UserAgentCounts:  make(map[string]int64),
+		SuspiciousIPs:    make(map[string]int64),
 		MinDuration:      1<<63 - 1,
 		durations:        make([]float64, 0, 10000),
 	}

@@ -1,0 +1,49 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test ./...
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check]
+    strategy:
+      matrix:
+        os: [linux, darwin]
+        arch: [amd64, arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          BIN=caddy-analyze-${{ matrix.os }}-${{ matrix.arch }}
+          go build -o "$BIN" ./cmd/caddy-analyze/
+          sha256sum "$BIN" > "$BIN.sha256"
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            caddy-analyze-*

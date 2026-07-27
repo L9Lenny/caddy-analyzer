@@ -8,9 +8,10 @@ import (
 )
 
 type Engine struct {
-	filters types.Filters
-	entries int
-	stats   *types.Stats
+	filters  types.Filters
+	entries  int
+	stats    *types.Stats
+	detector *Detector
 }
 
 func New(filters types.Filters) *Engine {
@@ -20,9 +21,19 @@ func New(filters types.Filters) *Engine {
 	}
 }
 
+func (e *Engine) SetDetector(d *Detector) {
+	e.detector = d
+}
+
 func (e *Engine) Process(entry *types.LogEntry) {
 	if !e.match(entry) {
 		return
+	}
+
+	if e.detector != nil {
+		if det := e.detector.Detect(entry); det != nil {
+			e.stats.SuspiciousIPs[entry.RemoteIP]++
+		}
 	}
 
 	e.entries++

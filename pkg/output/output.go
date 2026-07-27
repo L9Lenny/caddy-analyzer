@@ -35,18 +35,40 @@ func ParseFormat(s string) Format {
 }
 
 type Report struct {
-	engine *analysis.Engine
-	format Format
-	top    int
+	engine   *analysis.Engine
+	format   Format
+	top      int
 	sections types.TopSections
+	writer   io.Writer
+	detect   bool
 }
 
 func NewReport(engine *analysis.Engine, format Format, top int) *Report {
-	return &Report{engine: engine, format: format, top: top, sections: types.DefaultTopSections()}
+	return &Report{
+		engine:   engine,
+		format:   format,
+		top:      top,
+		sections: types.DefaultTopSections(),
+		writer:   os.Stdout,
+	}
 }
 
 func NewReportWithSections(engine *analysis.Engine, format Format, top int, sections types.TopSections) *Report {
-	return &Report{engine: engine, format: format, top: top, sections: sections}
+	return &Report{
+		engine:   engine,
+		format:   format,
+		top:      top,
+		sections: sections,
+		writer:   os.Stdout,
+	}
+}
+
+func (r *Report) SetWriter(w io.Writer) {
+	r.writer = w
+}
+
+func (r *Report) SetDetect(d bool) {
+	r.detect = d
 }
 
 func (r *Report) Print() {
@@ -64,7 +86,7 @@ func (r *Report) printTable() {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(w, "Caddy Log Analysis Report\n")
 	fmt.Fprintf(w, "========================\n\n")
@@ -98,6 +120,15 @@ func (r *Report) printTable() {
 
 	if s.ParseErrors > 0 {
 		fmt.Fprintf(w, "Parse Errors:\t%d\n\n", s.ParseErrors)
+	}
+
+	if r.detect && len(s.SuspiciousIPs) > 0 {
+		fmt.Fprintf(w, "Suspicious Activity Detected:\n")
+		items := analysis.TopN(s.SuspiciousIPs, 20)
+		for _, item := range items {
+			fmt.Fprintf(w, "  ⚠ %-15s %d suspicious requests\n", item.Key, item.Count)
+		}
+		fmt.Fprintf(w, "\n")
 	}
 
 	if r.top > 0 {
@@ -142,11 +173,11 @@ func (r *Report) printJSON() {
 		},
 		"requests_per_second": r.engine.RPS(),
 		"status_codes": map[string]interface{}{
-			"2xx":    s.Status2xx,
-			"3xx":    s.Status3xx,
-			"4xx":    s.Status4xx,
-			"5xx":    s.Status5xx,
-			"errors": s.Errors,
+			"2xx":     s.Status2xx,
+			"3xx":     s.Status3xx,
+			"4xx":     s.Status4xx,
+			"5xx":     s.Status5xx,
+			"errors":  s.Errors,
 			"by_code": s.StatusCounts,
 		},
 		"response_size": map[string]int64{
@@ -162,6 +193,10 @@ func (r *Report) printJSON() {
 			"p99": s.Percentile99,
 		},
 		"parse_errors": s.ParseErrors,
+	}
+
+	if r.detect && len(s.SuspiciousIPs) > 0 {
+		data["suspicious_ips"] = analysis.TopN(s.SuspiciousIPs, 20)
 	}
 
 	if r.top > 0 {
@@ -185,7 +220,7 @@ func (r *Report) printJSON() {
 		}
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(r.writer)
 	enc.SetIndent("", "  ")
 	enc.Encode(data)
 }
@@ -194,7 +229,7 @@ func (r *Report) printCSV() {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
-	w := csv.NewWriter(os.Stdout)
+	w := csv.NewWriter(r.writer)
 
 	w.Write([]string{"metric", "value"})
 	w.Write([]string{"total_requests", fmt.Sprintf("%d", total)})
@@ -210,6 +245,14 @@ func (r *Report) printCSV() {
 	w.Write([]string{"duration_p50", fmt.Sprintf("%.6f", s.Percentile50)})
 	w.Write([]string{"duration_p95", fmt.Sprintf("%.6f", s.Percentile95)})
 	w.Write([]string{"duration_p99", fmt.Sprintf("%.6f", s.Percentile99)})
+
+	if r.detect && len(s.SuspiciousIPs) > 0 {
+		w.Write(nil)
+		w.Write([]string{"suspicious_ips:ip", "count"})
+		for _, item := range analysis.TopN(s.SuspiciousIPs, 20) {
+			w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+		}
+	}
 
 	if r.top > 0 {
 		if r.sections.Path {

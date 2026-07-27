@@ -32,6 +32,8 @@ var (
 	flagK8sNS    string
 	flagInterval string
 	flagWatch    bool
+	flagDetect   bool
+	flagOutput   string
 )
 
 var rootCmd = &cobra.Command{
@@ -84,6 +86,8 @@ func init() {
 	flags.StringVarP(&flagK8sNS, "namespace", "n", "", "Kubernetes namespace")
 	flags.StringVarP(&flagInterval, "interval", "i", "", "Aggregation interval (e.g. 5m, 1h)")
 	flags.BoolVarP(&flagWatch, "watch", "w", false, "Live dashboard (RPS, top IP, status)")
+	flags.BoolVarP(&flagDetect, "detect", "d", false, "Detect suspicious activity (SQLi, XSS, scanners, etc.)")
+	flags.StringVarP(&flagOutput, "output", "o", "", "Write report to file instead of stdout")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
 	rootCmd.Version = "0.1.0"
@@ -146,6 +150,9 @@ func runAnalysis(cmd *cobra.Command, args []string) error {
 
 func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.Filters) error {
 	engine := analysis.New(filters)
+	if flagDetect {
+		engine.SetDetector(analysis.NewDetector())
+	}
 	sections := types.DefaultTopSections()
 	var parseErrors, processed int64
 
@@ -177,12 +184,25 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 
 	engine.Stats().ParseErrors = parseErrors
 	engine.Finalize()
-	output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections).Print()
+	report := output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections)
+	report.SetDetect(flagDetect)
+	if flagOutput != "" {
+		f, err := os.Create(flagOutput)
+		if err != nil {
+			return fmt.Errorf("create output file: %w", err)
+		}
+		defer f.Close()
+		report.SetWriter(f)
+	}
+	report.Print()
 	return nil
 }
 
 func runFollowMode(ctx context.Context, sources []types.LogSource, filters types.Filters) error {
 	engine := analysis.New(filters)
+	if flagDetect {
+		engine.SetDetector(analysis.NewDetector())
+	}
 	sections := types.DefaultTopSections()
 	last := time.Now()
 
@@ -201,7 +221,9 @@ func runFollowMode(ctx context.Context, sources []types.LogSource, filters types
 			engine.Process(entry)
 			if time.Since(last) > 5*time.Second {
 				engine.Finalize()
-				output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections).Print()
+				report := output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections)
+				report.SetDetect(flagDetect)
+				report.Print()
 				last = time.Now()
 			}
 		}
@@ -214,6 +236,13 @@ func runIntervalMode(ctx context.Context, sources []types.LogSource, filters typ
 	var engine *analysis.Engine
 	sections := types.DefaultTopSections()
 	initial := true
+	reportFn := func(e *analysis.Engine, t time.Time) {
+		e.Finalize()
+		fmt.Printf("\n--- %s ---\n", t.Format(time.RFC3339))
+		report := output.NewReportWithSections(e, output.ParseFormat(flagFormat), flagTop, sections)
+		report.SetDetect(flagDetect)
+		report.Print()
+	}
 
 	for _, src := range sources {
 		r := reader.FromSource(src)
@@ -231,22 +260,24 @@ func runIntervalMode(ctx context.Context, sources []types.LogSource, filters typ
 			if initial {
 				current = bucket
 				engine = analysis.New(filters)
+				if flagDetect {
+					engine.SetDetector(analysis.NewDetector())
+				}
 				initial = false
 			}
 			if bucket != current {
-				engine.Finalize()
-				fmt.Printf("\n--- %s ---\n", current.Format(time.RFC3339))
-				output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections).Print()
+				reportFn(engine, current)
 				engine = analysis.New(filters)
+				if flagDetect {
+					engine.SetDetector(analysis.NewDetector())
+				}
 				current = bucket
 			}
 			engine.Process(entry)
 		}
 	}
 	if engine != nil && engine.Count() > 0 {
-		engine.Finalize()
-		fmt.Printf("\n--- %s ---\n", current.Format(time.RFC3339))
-		output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections).Print()
+		reportFn(engine, current)
 	}
 	return nil
 }
