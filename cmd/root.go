@@ -40,7 +40,7 @@ var rootCmd = &cobra.Command{
 	Use:   "caddy-analyze [flags] [source...]",
 	Short: "Analyze Caddy access logs from files, stdin, Docker, Kubernetes, or journalctl",
 	Args:  cobra.ArbitraryArgs,
-	Long: `Analyze Caddy v2 access logs.
+	Long: `Analyze Caddy v2 access logs with anomaly detection.
 
 Sources:
   /path/to/file          Local file (supports glob patterns)
@@ -54,14 +54,18 @@ Config (auto-detected):
   ~/.config/caddy-analyzer/config.json  Global config
   Format: { "source": "/var/log/caddy/access.log" }
 
+Detection (--detect):
+  SQL injection, XSS, path traversal, scanner tools,
+  brute force (401/403 surge), directory scanning (404 surge)
+
 Examples:
   caddy-analyze /var/log/caddy/access.log
+  caddy-analyze --detect /var/log/caddy/access.log
+  caddy-analyze -o report.json -f json /var/log/caddy/access.log
   docker logs my-caddy | caddy-analyze -
   caddy-analyze docker://my-caddy --watch
-  caddy-analyze block 10.0.0.1
   caddy-analyze guard docker://my-caddy --limit 100
   caddy-analyze config /var/log/caddy/access.log
-  caddy-analyze unban 192.168.1.1
 `,
 	RunE: runAnalysis,
 }
