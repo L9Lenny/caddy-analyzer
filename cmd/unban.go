@@ -11,10 +11,10 @@ import (
 
 var unbanCmd = &cobra.Command{
 	Use:   "unban <ip> [ip...]",
-	Short: "Rimuove IP dal firewall",
-	Long: `Rimuove uno o più IP dal firewall (iptables).
+	Short: "Remove IP from firewall",
+	Long: `Remove one or more IPs from the firewall (iptables).
 
-Esempi:
+Examples:
   caddy-analyze unban 192.168.1.1
   caddy-analyze unban 10.0.0.1 10.0.0.2
   caddy-analyze unban --all
@@ -27,8 +27,8 @@ var unbanAll bool
 var unbanList bool
 
 func init() {
-	unbanCmd.Flags().BoolVarP(&unbanAll, "all", "A", false, "Sblocca tutti gli IP bloccati")
-	unbanCmd.Flags().BoolVarP(&unbanList, "list", "l", false, "Mostra IP attualmente bloccati")
+	unbanCmd.Flags().BoolVarP(&unbanAll, "all", "A", false, "Unblock all currently blocked IPs")
+	unbanCmd.Flags().BoolVarP(&unbanList, "list", "l", false, "Show currently blocked IPs")
 	rootCmd.AddCommand(unbanCmd)
 }
 
@@ -40,7 +40,7 @@ func runUnban(cmd *cobra.Command, args []string) error {
 		return unblockAll()
 	}
 	if len(args) == 0 {
-		return fmt.Errorf("specifica almeno un IP da sbloccare, oppure --all")
+		return fmt.Errorf("specify at least one IP to unblock, or use --all")
 	}
 	return unblockIPs(args)
 }
@@ -51,7 +51,7 @@ func unblockIPs(ips []string) error {
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
 		} else {
-			fmt.Printf("  ✓ %s sbloccato\n", ip)
+			fmt.Printf("  ✓ %s unblocked\n", ip)
 		}
 	}
 	return nil
@@ -63,7 +63,7 @@ func unblockAll() error {
 		return err
 	}
 	if len(ips) == 0 {
-		fmt.Println("Nessun IP bloccato.")
+		fmt.Println("No blocked IPs.")
 		return nil
 	}
 	return unblockIPs(ips)
@@ -75,10 +75,10 @@ func listBlocked() error {
 		return err
 	}
 	if len(ips) == 0 {
-		fmt.Println("Nessun IP bloccato.")
+		fmt.Println("No blocked IPs.")
 		return nil
 	}
-	fmt.Println("IP bloccati:")
+	fmt.Println("Blocked IPs:")
 	for _, ip := range ips {
 		fmt.Printf("  %s\n", ip)
 	}

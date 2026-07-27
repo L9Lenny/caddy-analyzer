@@ -26,14 +26,14 @@ var (
 
 var guardCmd = &cobra.Command{
 	Use:   "guard [source]",
-	Short: "Blocca automaticamente IP malevoli in tempo reale",
-	Long: `Monitora i log in tempo reale e blocca automaticamente via iptables
-gli IP che superano la soglia di richieste nella finestra temporale.
+	Short: "Auto-block malicious IPs in real time",
+	Long: `Monitor logs in real time and automatically block IPs that exceed
+the request threshold within the time window (via iptables).
 
-Il blocco è temporaneo (default 10m). Per blocco permanente: --duration 0.
-Per sbloccare manualmente: caddy-analyze unban <ip> o --all.
+Blockade is temporary (default 10m). For permanent block: --duration 0.
+To unblock manually: caddy-analyze unban <ip> or --all.
 
-Esempi:
+Examples:
   caddy-analyze guard /var/log/caddy/access.log
   caddy-analyze guard docker://my-caddy --limit 200 --window 5m
   caddy-analyze guard docker://my-caddy --duration 1h
@@ -44,9 +44,9 @@ Esempi:
 }
 
 func init() {
-	guardCmd.Flags().IntVarP(&guardLimit, "limit", "l", 100, "Richieste massime prima del blocco")
-	guardCmd.Flags().StringVarP(&guardWindow, "window", "w", "1m", "Finestra temporale di monitoraggio")
-	guardCmd.Flags().StringVarP(&guardDuration, "duration", "d", "10m", "Durata blocco (es. 10m, 1h). 0 = permanente")
+	guardCmd.Flags().IntVarP(&guardLimit, "limit", "l", 100, "Max requests before blocking")
+	guardCmd.Flags().StringVarP(&guardWindow, "window", "w", "1m", "Monitoring time window")
+	guardCmd.Flags().StringVarP(&guardDuration, "duration", "d", "10m", "Block duration (e.g. 10m, 1h). 0 = permanent")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -55,7 +55,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 
 	window, err := time.ParseDuration(guardWindow)
 	if err != nil {
-		return fmt.Errorf("window non valida: %w", err)
+		return fmt.Errorf("invalid window: %w", err)
 	}
 
 	duration, _ := time.ParseDuration(guardDuration)
@@ -82,7 +82,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		r := reader.FromSource(src)
 		lines, err := r.Read(ctx)
 		if err != nil {
-			return fmt.Errorf("lettura %s: %w", r.Name(), err)
+			return fmt.Errorf("reading %s: %w", r.Name(), err)
 		}
 		go func() {
 			for l := range lines {
@@ -99,10 +99,10 @@ func runGuard(cmd *cobra.Command, args []string) error {
 
 	durMsg := duration.String()
 	if duration <= 0 {
-		durMsg = "permanente"
+		durMsg = "permanent"
 	}
-	fmt.Fprintf(os.Stderr, "Guardia attiva — soglia: %d richieste / %s | blocco: %s\n", guardLimit, guardWindow, durMsg)
-	fmt.Fprintf(os.Stderr, "Ctrl+C per fermare\n\n")
+	fmt.Fprintf(os.Stderr, "Guard active — threshold: %d requests / %s | block: %s\n", guardLimit, guardWindow, durMsg)
+	fmt.Fprintf(os.Stderr, "Ctrl+C to stop\n\n")
 
 	for {
 		select {
@@ -142,7 +142,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 					if err := cmd.Run(); err != nil {
 						fmt.Fprintf(os.Stderr, "[%s] ✗ %s (%d req): %v\n", now.Format("15:04:05"), c.IP, c.Count, err)
 					} else {
-						fmt.Fprintf(os.Stderr, "[%s] ✓ %s bloccato (%d richieste)\n", now.Format("15:04:05"), c.IP, c.Count)
+						fmt.Fprintf(os.Stderr, "[%s] ✓ %s blocked (%d requests)\n", now.Format("15:04:05"), c.IP, c.Count)
 						if duration > 0 {
 							go unblockAfter(c.IP, duration)
 						}
@@ -153,9 +153,9 @@ func runGuard(cmd *cobra.Command, args []string) error {
 			engine = analysis.New(types.Filters{})
 			engine.Stats().StartTime = now
 		case <-ctx.Done():
-			fmt.Fprintln(os.Stderr, "\nGuardia fermata.")
-			if len(blocked) > 0 {
-				fmt.Fprintf(os.Stderr, "IP bloccati in questa sessione: %d\n", len(blocked))
+		fmt.Fprintln(os.Stderr, "\nGuard stopped.")
+		if len(blocked) > 0 {
+			fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", len(blocked))
 			}
 			return nil
 		}
@@ -166,8 +166,8 @@ func unblockAfter(ip string, duration time.Duration) {
 	time.Sleep(duration)
 	cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "[sblocco] ✗ %s: %v\n", ip, err)
+		fmt.Fprintf(os.Stderr, "[unblock] ✗ %s: %v\n", ip, err)
 	} else {
-		fmt.Fprintf(os.Stderr, "[sblocco] ✓ %s sbloccato (durata scaduta)\n", ip)
+		fmt.Fprintf(os.Stderr, "[unblock] ✓ %s unblocked (duration expired)\n", ip)
 	}
 }

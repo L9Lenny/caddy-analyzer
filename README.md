@@ -1,84 +1,95 @@
 # caddy-analyzer
 
-CLI universale per analizzare i log di accesso di Caddy v2, supporta file locali,
-stdin, Docker, Kubernetes e systemd journalctl.
+Universal CLI tool for analyzing Caddy v2 access logs, supporting local files,
+stdin, Docker, Kubernetes, and systemd journalctl.
 
-## Installazione
+## Installation
 
 ```bash
 go install github.com/lenny/caddy-analyzer/cmd/caddy-analyze@latest
 ```
 
-Oppure build da sorgente:
+Or build from source:
 
 ```bash
 git clone <repo>
 cd caddy-analyzer
-go build -o caddy-analyze ./cmd/caddy-analyze/
+make build
 ```
 
-## Utilizzo
+## Usage
 
 ```
 caddy-analyze [flags] [source...]
 ```
 
-### Sorgenti supportate
+### Supported sources
 
-| Sorgente | Esempio | Descrizione |
-|----------|---------|-------------|
-| File | `caddy-analyze /var/log/caddy/access.log` | File locale, supporta glob |
-| Stdin | `docker logs my-caddy \| caddy-analyze -` | Pipe da altri comandi |
-| Docker | `caddy-analyze docker://my-caddy` | Log da container Docker |
-| Kubernetes | `caddy-analyze k8s://pod-name -n namespace` | Log da pod K8s |
-| Journalctl | `caddy-analyze journalctl://caddy` | Log da systemd unit |
+| Source | Example | Description |
+|--------|---------|-------------|
+| File | `caddy-analyze /var/log/caddy/access.log` | Local file, supports glob |
+| Stdin | `docker logs my-caddy \| caddy-analyze -` | Pipe from other commands |
+| Docker | `caddy-analyze docker://my-caddy` | Logs from Docker container |
+| Kubernetes | `caddy-analyze k8s://pod-name -n namespace` | Logs from K8s pod |
+| Journalctl | `caddy-analyze journalctl://caddy` | Logs from systemd unit |
 
-### Esempi
+### Examples
 
 ```bash
-# Analisi base di un file di log
+# Basic analysis from file
 caddy-analyze /var/log/caddy/access.log
 
-# Filtra per errori 5xx
+# Filter by status (5xx errors)
 caddy-analyze --status 500,502,503 /var/log/caddy/access.log
 
-# Solo metodo POST
+# Only POST requests
 caddy-analyze --method POST /var/log/caddy/access.log
 
-# Output JSON
+# JSON output
 caddy-analyze -f json /var/log/caddy/access.log
 
-# Top 5 percorsi più chiamati
+# Top 5 most requested paths
 caddy-analyze --top 5 /var/log/caddy/access.log
 
-# Log da Docker con filtro temporale
+# Docker logs with time filter
 caddy-analyze docker://my-caddy --from 30m
 
-# Segui i log in tempo reale
+# Follow logs in real time
 caddy-analyze --follow docker://my-caddy
 
-# Aggregazione per intervallo di 5 minuti
+# Aggregate by 5-minute interval
 caddy-analyze -i 5m /var/log/caddy/access.log
 
-# Filtra per path con glob
+# Filter by path with glob
 caddy-analyze --path '/api/*' /var/log/caddy/access.log
 ```
 
 ### Flags
 
-| Flag | Default | Descrizione |
+| Flag | Default | Description |
 |------|---------|-------------|
-| `--from` | | Filtra da un time (RFC3339 o relativo: 5m, 1h, 2d) |
-| `--to` | | Filtra fino a un time (RFC3339) |
-| `-s, --status` | | Filtra per status code (es. `-s 200,404`) |
-| `-m, --method` | | Filtra per metodo HTTP |
-| `-p, --path` | | Filtra per path (glob: `/api/*`) |
-| `--host` | | Filtra per host |
-| `--min-latency` | | Latenza minima in secondi |
-| `--max-latency` | | Latenza massima in secondi |
-| `--remote-ip` | | Filtra per IP remoto |
-| `-t, --top` | 10 | Mostra top N (0 per disabilitare) |
+| `--from` | | Filter from time (RFC3339 or relative: 5m, 1h, 2d) |
+| `--to` | | Filter to time (RFC3339) |
+| `-s, --status` | | Filter by status code (e.g. `-s 200,404`) |
+| `-m, --method` | | Filter by HTTP method |
+| `-p, --path` | | Filter by path (glob: `/api/*`) |
+| `--host` | | Filter by host |
+| `--min-latency` | | Minimum latency in seconds |
+| `--max-latency` | | Maximum latency in seconds |
+| `--remote-ip` | | Filter by remote IP |
+| `-t, --top` | 10 | Show top N (0 to disable) |
 | `-f, --format` | table | Output: table, json, csv |
-| `-F, --follow` | | Segui i log in tempo reale |
-| `-n, --namespace` | | Namespace Kubernetes |
-| `-i, --interval` | | Intervallo di aggregazione (5m, 1h) |
+| `-F, --follow` | | Follow new logs in real time |
+| `-n, --namespace` | | Kubernetes namespace |
+| `-i, --interval` | | Aggregation interval (5m, 1h) |
+| `-w, --watch` | | Live dashboard (RPS, top IP, status) |
+| `--init` | | Generate config template |
+
+## Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `block <ip> [ip...]` | Block IP(s) via iptables |
+| `unban <ip> [ip...]` | Remove IP(s) from iptables |
+| `guard [source]` | Auto-block malicious IPs in real time |
+| `config [source]` | Set default source in config file |

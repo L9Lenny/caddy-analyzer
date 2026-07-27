@@ -10,10 +10,10 @@ import (
 
 var blockCmd = &cobra.Command{
 	Use:   "block <ip> [ip...]",
-	Short: "Blocca IP via iptables",
-	Long: `Blocca uno o più IP via iptables.
+	Short: "Block IP via iptables",
+	Long: `Block one or more IPs via iptables.
 
-Esempi:
+Examples:
   caddy-analyze block 10.0.0.1
   caddy-analyze block 192.168.1.1 10.0.0.2
 `,
@@ -25,7 +25,7 @@ Esempi:
 			if err := c.Run(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
 			} else {
-				fmt.Printf("  ✓ %s bloccato\n", ip)
+				fmt.Printf("  ✓ %s blocked\n", ip)
 			}
 		}
 		return nil

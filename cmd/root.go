@@ -45,22 +45,23 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "caddy-analyze [flags] [source...]",
-	Short: "Analizza log di Caddy da file, stdin, Docker, Kubernetes o journalctl",
+	Short: "Analyze Caddy access logs from files, stdin, Docker, Kubernetes, or journalctl",
 	Args:  cobra.ArbitraryArgs,
-	Long: `Analizza i log di accesso di Caddy v2.
+	Long: `Analyze Caddy v2 access logs.
 
-Sorgenti:
-  /path/to/file          File locale (supporta glob)
+Sources:
+  /path/to/file          Local file (supports glob patterns)
   -                      Stdin (pipe)
-  docker://container     Container Docker
-  k8s://pod              Pod Kubernetes  (-n namespace)
-  journalctl://unit      Unità systemd
+  docker://container     Docker container
+  k8s://pod              Kubernetes pod  (-n namespace)
+  journalctl://unit      systemd unit
 
-Config:
-  ./caddy-analyzer.json  o  ~/.config/caddy-analyzer/config.json
-  Formato: { "source": "/var/log/caddy/access.log" }
+Config (auto-detected):
+  ./caddy-analyzer.json        Local config
+  ~/.config/caddy-analyzer/config.json  Global config
+  Format: { "source": "/var/log/caddy/access.log" }
 
-Esempi:
+Examples:
   caddy-analyze /var/log/caddy/access.log
   docker logs my-caddy | caddy-analyze -
   caddy-analyze docker://my-caddy --watch
@@ -81,28 +82,28 @@ func Execute() {
 func init() {
 	flags := rootCmd.Flags()
 
-	flags.StringVarP(&flagFrom, "from", "", "", "Da (RFC3339 o relativo: 5m, 1h, 2d)")
-	flags.StringVarP(&flagTo, "to", "", "", "A (RFC3339)")
-	flags.StringArrayVarP(&flagStatus, "status", "s", nil, "Filtra per status code (es. -s 200,404)")
-	flags.StringVarP(&flagMethod, "method", "m", "", "Filtra per metodo HTTP")
-	flags.StringVarP(&flagPath, "path", "p", "", "Filtra per path (glob: /api/*)")
-	flags.StringVarP(&flagHost, "host", "", "", "Filtra per host")
-	flags.Float64VarP(&flagMinLat, "min-latency", "", 0, "Latenza minima (s)")
-	flags.Float64VarP(&flagMaxLat, "max-latency", "", 0, "Latenza massima (s)")
-	flags.Int64VarP(&flagMinSize, "min-size", "", 0, "Dimensione minima risposta (byte)")
-	flags.Int64VarP(&flagMaxSize, "max-size", "", 0, "Dimensione massima risposta (byte)")
-	flags.StringVarP(&flagRemoteIP, "remote-ip", "", "", "Filtra per IP remoto")
-	flags.StringVarP(&flagFile, "file", "", "", "Leggi da file (sovrascrive la config)")
-	flags.IntVarP(&flagTop, "top", "t", 10, "Mostra top N (0 per disabilitare)")
-	flags.StringVarP(&flagTopBy, "top-by", "", "path,ip,ua", "Sezioni top: path,ip,ua,method,status,host")
-	flags.StringVarP(&flagFormat, "format", "f", "table", "Formato output: table, json, csv")
-	flags.BoolVarP(&flagFollow, "follow", "F", false, "Segui nuovi log in tempo reale")
-	flags.StringVarP(&flagK8sNS, "namespace", "n", "", "Namespace Kubernetes")
-	flags.StringVarP(&flagInterval, "interval", "i", "", "Intervallo aggregazione (es. 5m, 1h)")
-	flags.BoolVarP(&flagInit, "init", "", false, "Genera file di config template")
-	flags.BoolVarP(&flagWatch, "watch", "w", false, "Dashboard live (RPS, top IP, status)")
+	flags.StringVarP(&flagFrom, "from", "", "", "From (RFC3339 or relative: 5m, 1h, 2d)")
+	flags.StringVarP(&flagTo, "to", "", "", "To (RFC3339)")
+	flags.StringArrayVarP(&flagStatus, "status", "s", nil, "Filter by status code (e.g. -s 200,404)")
+	flags.StringVarP(&flagMethod, "method", "m", "", "Filter by HTTP method")
+	flags.StringVarP(&flagPath, "path", "p", "", "Filter by path (glob: /api/*)")
+	flags.StringVarP(&flagHost, "host", "", "", "Filter by host")
+	flags.Float64VarP(&flagMinLat, "min-latency", "", 0, "Minimum latency (s)")
+	flags.Float64VarP(&flagMaxLat, "max-latency", "", 0, "Maximum latency (s)")
+	flags.Int64VarP(&flagMinSize, "min-size", "", 0, "Minimum response size (bytes)")
+	flags.Int64VarP(&flagMaxSize, "max-size", "", 0, "Maximum response size (bytes)")
+	flags.StringVarP(&flagRemoteIP, "remote-ip", "", "", "Filter by remote IP")
+	flags.StringVarP(&flagFile, "file", "", "", "Read from file (overrides config)")
+	flags.IntVarP(&flagTop, "top", "t", 10, "Show top N (0 to disable)")
+	flags.StringVarP(&flagTopBy, "top-by", "", "path,ip,ua", "Top sections: path,ip,ua,method,status,host")
+	flags.StringVarP(&flagFormat, "format", "f", "table", "Output format: table, json, csv")
+	flags.BoolVarP(&flagFollow, "follow", "F", false, "Follow new logs in real time")
+	flags.StringVarP(&flagK8sNS, "namespace", "n", "", "Kubernetes namespace")
+	flags.StringVarP(&flagInterval, "interval", "i", "", "Aggregation interval (e.g. 5m, 1h)")
+	flags.BoolVarP(&flagInit, "init", "", false, "Generate config template")
+	flags.BoolVarP(&flagWatch, "watch", "w", false, "Live dashboard (RPS, top IP, status)")
 
-	rootCmd.Flags().BoolP("version", "v", false, "Versione")
+	rootCmd.Flags().BoolP("version", "v", false, "Version")
 	rootCmd.Version = "0.1.0"
 }
 
@@ -147,7 +148,7 @@ func runInit() error {
 	if err := config.CreateDefault(path); err != nil {
 		return fmt.Errorf("create config: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "config creato: %s\n", path)
+	fmt.Fprintf(os.Stderr, "config created: %s\n", path)
 	return nil
 }
 
@@ -178,7 +179,7 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 	}
 
 	if processed == 0 && parseErrors == 0 {
-		fmt.Fprintln(os.Stderr, "nessun log trovato")
+		fmt.Fprintln(os.Stderr, "no log entries found")
 		return nil
 	}
 
@@ -282,7 +283,7 @@ func runWatch(ctx context.Context, sources []types.LogSource) error {
 	}
 
 	fmt.Print("\033[2J")
-	fmt.Println(" Caddy Monitor (Ctrl+C per uscire)")
+	fmt.Println(" Caddy Monitor (Ctrl+C to exit)")
 	fmt.Println(strings.Repeat("━", 50))
 
 	for {
@@ -302,7 +303,7 @@ func runWatch(ctx context.Context, sources []types.LogSource) error {
 			rps := float64(s.TotalRequests) / elapsed
 
 			fmt.Printf("\033[4H\033[J")
-			fmt.Printf(" Richieste: %d   RPS: %.1f   Errori: %d\n", s.TotalRequests, rps, s.Errors)
+			fmt.Printf(" Requests: %d   RPS: %.1f   Errors: %d\n", s.TotalRequests, rps, s.Errors)
 			fmt.Printf(" Status: 2xx:%d  3xx:%d  4xx:%d  5xx:%d\n\n", s.Status2xx, s.Status3xx, s.Status4xx, s.Status5xx)
 
 			fmt.Printf(" Top IP:\n")
@@ -343,7 +344,7 @@ func resolveSources(args []string) []types.LogSource {
 	}
 	cfg, cfgPath, err := config.Load()
 	if err == nil && cfg != nil && cfg.Source != "" {
-		fmt.Fprintf(os.Stderr, "usando config: %s\n", cfgPath)
+		fmt.Fprintf(os.Stderr, "using config: %s\n", cfgPath)
 		return []types.LogSource{reader.ParseSource(cfg.Source)}
 	}
 	return []types.LogSource{{Type: types.SourceStdin}}
@@ -407,7 +408,7 @@ func buildFilters() (types.Filters, error) {
 		for _, ss := range strings.Split(s, ",") {
 			code, err := strconv.Atoi(strings.TrimSpace(ss))
 			if err != nil {
-				return f, fmt.Errorf("status invalido: %s", ss)
+				return f, fmt.Errorf("invalid status: %s", ss)
 			}
 			f.Status = append(f.Status, code)
 		}
@@ -430,7 +431,7 @@ func parseTime(s string) (time.Time, error) {
 	unit := s[len(s)-1:]
 	n, err := strconv.Atoi(s[:len(s)-1])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("time non valido: %s", s)
+		return time.Time{}, fmt.Errorf("invalid time: %s", s)
 	}
 	now := time.Now()
 	switch unit {
@@ -443,5 +444,5 @@ func parseTime(s string) (time.Time, error) {
 	case "d":
 		return now.Add(-time.Duration(n) * 24 * time.Hour), nil
 	}
-	return time.Time{}, fmt.Errorf("unità tempo sconosciuta: %s", unit)
+	return time.Time{}, fmt.Errorf("unknown time unit: %s", unit)
 }
