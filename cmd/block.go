@@ -1,0 +1,37 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	"github.com/spf13/cobra"
+)
+
+var blockCmd = &cobra.Command{
+	Use:   "block <ip> [ip...]",
+	Short: "Blocca IP via iptables",
+	Long: `Blocca uno o più IP via iptables.
+
+Esempi:
+  caddy-analyze block 10.0.0.1
+  caddy-analyze block 192.168.1.1 10.0.0.2
+`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		for _, ip := range args {
+			c := exec.Command("iptables", "-A", "INPUT", "-s", ip, "-j", "DROP")
+			c.Stderr = os.Stderr
+			if err := c.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
+			} else {
+				fmt.Printf("  ✓ %s bloccato\n", ip)
+			}
+		}
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(blockCmd)
+}

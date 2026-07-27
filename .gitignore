@@ -1,0 +1,5 @@
+/caddy-analyze
+/caddy-analyzer
+*.exe
+*.test
+*.out
