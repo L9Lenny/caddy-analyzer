@@ -33,6 +33,9 @@ func init() {
 }
 
 func runUnban(cmd *cobra.Command, args []string) error {
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("requires root: run with sudo")
+	}
 	if unbanList {
 		return listBlocked()
 	}
@@ -93,18 +96,22 @@ func listBlockedIPs() ([]string, error) {
 
 	var ips []string
 	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, "DROP") {
-			fields := strings.Fields(line)
-			for i, f := range fields {
-				if f == "-s" && i+1 < len(fields) {
-					ip := fields[i+1]
-					if idx := strings.Index(ip, "/"); idx > 0 {
-						ip = ip[:idx]
-					}
-					ips = append(ips, ip)
-				}
-			}
+		if !strings.Contains(line, "DROP") {
+			continue
 		}
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+		source := fields[3]
+		if source == "0.0.0.0/0" || source == "::/0" {
+			continue
+		}
+		ip := source
+		if idx := strings.Index(ip, "/"); idx > 0 {
+			ip = ip[:idx]
+		}
+		ips = append(ips, ip)
 	}
 	return ips, nil
 }

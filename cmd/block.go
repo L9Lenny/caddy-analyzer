@@ -19,6 +19,9 @@ Examples:
 `,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if os.Geteuid() != 0 {
+			return fmt.Errorf("requires root: run with sudo")
+		}
 		for _, ip := range args {
 			c := exec.Command("iptables", "-A", "INPUT", "-s", ip, "-j", "DROP")
 			c.Stderr = os.Stderr
