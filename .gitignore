@@ -1,5 +1,4 @@
-/caddy-analyze
-/caddy-analyzer
-*.exe
-*.test
-*.out
+caddy-analyze
+caddy-analyzer.json
+caddy_access.log
+*.sha256
