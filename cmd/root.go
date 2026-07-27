@@ -105,6 +105,29 @@ func init() {
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
 	rootCmd.Version = "0.1.0"
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	addHiddenCompletionCmd()
+}
+
+func addHiddenCompletionCmd() {
+	c := &cobra.Command{
+		Use:    "completion [bash|zsh|fish]",
+		Short:  "Generate shell completion script",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return cmd.Root().GenBashCompletion(os.Stdout)
+			case "zsh":
+				return cmd.Root().GenZshCompletion(os.Stdout)
+			case "fish":
+				return cmd.Root().GenFishCompletion(os.Stdout, true)
+			}
+			return fmt.Errorf("unsupported shell: %s", args[0])
+		},
+	}
+	rootCmd.AddCommand(c)
 }
 
 func runAnalysis(cmd *cobra.Command, args []string) error {
