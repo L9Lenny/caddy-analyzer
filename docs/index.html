@@ -162,6 +162,11 @@ caddy-analyze --detect /var/log/caddy/access.log
 # Filter slow requests (> 500ms) and exclude bots
 caddy-analyze --slow 500ms --no-bots /var/log/caddy/access.log
 
+# Quick top metrics by dimension (default: top paths)
+caddy-analyze top /var/log/caddy/access.log
+caddy-analyze top ip /var/log/caddy/access.log --5xx
+caddy-analyze top bandwidth /var/log/caddy/access.log -t 20
+
 # Stream colorized logs in real time
 caddy-analyze tail docker://my-caddy
 

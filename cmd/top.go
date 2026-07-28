@@ -18,23 +18,32 @@ var flagTopBy string
 
 var topCmd = &cobra.Command{
 	Use:   "top [dimension] [source...]",
-	Short: "Quickly display top metrics for a specific dimension",
-	Long: `Quickly display top metrics by dimension (default: path).
+	Short: "Quickly display top-N metrics for a specific dimension (path, ip, ua, status, bandwidth)",
+	Long: `Quickly inspect the top N requests for a specific dimension without generating a full analysis report.
 
 Dimensions:
-  path        Top requested HTTP paths (default)
-  ip          Top client IP addresses
-  ua          Top User-Agent strings
-  status      Top HTTP status codes
-  method      Top HTTP methods
-  host        Top request hosts
-  bandwidth   Top paths by total byte bandwidth
+  path        Top requested HTTP URIs / endpoints (default)
+  ip          Top client IP addresses (useful for identifying scrapers & DoS)
+  ua          Top User-Agent strings (useful for bot/browser classification)
+  status      Top HTTP status codes (200, 404, 500, etc.)
+  method      Top HTTP methods (GET, POST, PUT, DELETE, etc.)
+  host        Top request domain hosts
+  bandwidth   Top paths sorted by total byte bandwidth transferred
+
+Useful Flags:
+  -t, --top <N>      Number of top entries to display (default: 10)
+  -b, --by <dim>     Specify dimension via flag (path, ip, ua, status, bandwidth)
+  --5xx              Filter only 5xx server error requests
+  --slow <duration>  Filter requests taking longer than duration (e.g. 500ms, 1s)
+  --no-bots          Exclude search engine crawlers and automated bots
 
 Examples:
   caddy-analyze top /var/log/caddy/access.log
   caddy-analyze top ip /var/log/caddy/access.log
-  caddy-analyze top /var/log/caddy/access.log --by status
-  caddy-analyze top bandwidth docker://my-caddy
+  caddy-analyze top ip /var/log/caddy/access.log --5xx
+  caddy-analyze top bandwidth /var/log/caddy/access.log -t 20
+  caddy-analyze top /var/log/caddy/access.log --by status --slow 500ms
+  caddy-analyze top docker://my-caddy
 `,
 	Args: cobra.ArbitraryArgs,
 	RunE: runTopCmd,

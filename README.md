@@ -98,11 +98,32 @@ caddy-analyze [flags] [source...]
 
 Subcommands:
   tail [source...]                      Stream and colorize Caddy access logs in real time
-  top <dimension> [source...]           Quick top-N metric inspector (path, ip, ua, status, bandwidth)
+  top [dimension] [source...]           Quick top-N metric inspector (path, ip, ua, status, bandwidth)
   diff <baseline_log> <target_log>      Compare two log files for RPS shifts, 5xx spikes, and latency changes
   guard [source...]                     Auto-block malicious IPs in real time via iptables
   block <ip...>                         Manually block IP address via iptables
   unban <ip...>                         Remove IP address block from iptables
+```
+
+### 📊 Quick Metric Inspector (`caddy-analyze top`)
+
+The `top` command provides targeted top-N rankings for specific log dimensions without generating a full report:
+
+```bash
+# Top requested endpoints (default dimension)
+caddy-analyze top /var/log/caddy/access.log
+
+# Top client IP addresses (identify scrapers & DoS sources)
+caddy-analyze top ip /var/log/caddy/access.log
+
+# Top client IPs triggering 5xx server errors
+caddy-analyze top ip /var/log/caddy/access.log --5xx
+
+# Top paths consuming the highest bandwidth (top 20)
+caddy-analyze top bandwidth /var/log/caddy/access.log -t 20
+
+# Top status codes for slow requests (> 500ms)
+caddy-analyze top /var/log/caddy/access.log --by status --slow 500ms
 ```
 
 ### 🚩 Flags
