@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation Guide — caddy-analyzer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #111111;
+            color: #d1d5db;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        h1, h2, h3 { color: #ffffff; font-weight: 600; }
+        h1 { font-size: 1.8rem; border-bottom: 1px solid #282828; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #9ca3af; font-size: 1.05rem; margin-bottom: 2rem; }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        nav.doc-nav {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #222222;
+            padding-bottom: 1rem;
+        }
+
+        nav.doc-nav a {
+            background: #181818;
+            border: 1px solid #282828;
+            color: #d1d5db;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        nav.doc-nav a:hover, nav.doc-nav a.active {
+            border-color: #60a5fa;
+            color: #ffffff;
+            background: #222222;
+        }
+
+        pre, code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.88em;
+        }
+
+        pre {
+            background: #181818;
+            border: 1px solid #282828;
+            border-radius: 4px;
+            padding: 1rem;
+            overflow-x: auto;
+            color: #e5e7eb;
+            margin: 1rem 0 1.5rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+        ul { margin: 0 0 1.5rem 1.5rem; }
+        li { margin-bottom: 0.4rem; }
+
+        .footer {
+            margin-top: 4rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #222222;
+            color: #6b7280;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Installation Guide</h1>
+    <div class="subtitle">Complete cross-platform installation methods and system integration</div>
+
+    <nav class="doc-nav">
+        <a href="index.html">Overview</a>
+        <a href="installation.html" class="active">Installation</a>
+        <a href="sources.html">Log Sources</a>
+        <a href="subcommands.html">Subcommands</a>
+        <a href="security.html">Threat Detector</a>
+        <a href="tui-html.html">TUI & HTML Reports</a>
+    </nav>
+
+    <h2>1. Linux & macOS One-Line Installer</h2>
+    <p>The automated POSIX shell script detects your operating system (Linux or macOS) and processor architecture (AMD64, ARM64 Apple Silicon/Raspberry Pi, ARMv7, 386), downloads the latest compiled release binary, and installs it to <code>/usr/local/bin/caddy-analyze</code>:</p>
+    <pre>curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</pre>
+
+    <h2>2. Windows PowerShell One-Line Installer</h2>
+    <p>Downloads the compiled <code>caddy-analyze.exe</code> binary for Windows, extracts it into <code>%LOCALAPPDATA%\caddy-analyze</code>, and adds the folder to your User PATH variable automatically:</p>
+    <pre>iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex</pre>
+
+    <h2>3. Go Toolchain Installation</h2>
+    <p>If you have Go 1.22+ installed, compile and install directly from source code using the Go toolchain:</p>
+    <pre>go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest</pre>
+
+    <h2>4. Docker Container Setup</h2>
+    <p>You can run <code>caddy-analyzer</code> using Docker without installing Go or compiler toolchains on your host machine. Mount your host log directory into the container:</p>
+    <pre># Run static log file analysis
+docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log
+
+# Stream from Docker daemon socket
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/L9Lenny/caddy-analyzer docker://my-caddy</pre>
+
+    <h2>5. Manual Binary Releases</h2>
+    <p>Pre-built, 100% statically linked binaries without dynamic libc dependencies are available on the <a href="https://github.com/L9Lenny/caddy-analyzer/releases">GitHub Releases page</a>:</p>
+    <ul>
+        <li><code>caddy-analyzer_0.1.0_linux_amd64.tar.gz</code> — Linux x86_64</li>
+        <li><code>caddy-analyzer_0.1.0_linux_arm64.tar.gz</code> — Linux ARM64 (Raspberry Pi 4/5, AWS Graviton)</li>
+        <li><code>caddy-analyzer_0.1.0_darwin_arm64.tar.gz</code> — macOS Apple Silicon (M1/M2/M3/M4)</li>
+        <li><code>caddy-analyzer_0.1.0_darwin_amd64.tar.gz</code> — macOS Intel</li>
+        <li><code>caddy-analyzer_0.1.0_windows_amd64.zip</code> — Windows 64-bit</li>
+    </ul>
+
+    <h2>6. Systemd Service Guard Integration</h2>
+    <p>To run <code>caddy-analyze guard</code> as an automated background system service on Linux that automatically blocks attacking IPs via <code>iptables</code>, create <code>/etc/systemd/system/caddy-guard.service</code>:</p>
+    <pre>[Unit]
+Description=caddy-analyzer Security Guard Daemon
+After=network.target caddy.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/caddy-analyze guard --limit 50 --window 1m /var/log/caddy/access.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</pre>
+
+    <p>Enable and start the service:</p>
+    <pre>sudo systemctl daemon-reload
+sudo systemctl enable --now caddy-guard</pre>
+
+    <div class="footer">
+        <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
+    </div>
+
+</body>
+</html>

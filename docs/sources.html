@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Sources Guide — caddy-analyzer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #111111;
+            color: #d1d5db;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        h1, h2, h3 { color: #ffffff; font-weight: 600; }
+        h1 { font-size: 1.8rem; border-bottom: 1px solid #282828; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #9ca3af; font-size: 1.05rem; margin-bottom: 2rem; }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        nav.doc-nav {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #222222;
+            padding-bottom: 1rem;
+        }
+
+        nav.doc-nav a {
+            background: #181818;
+            border: 1px solid #282828;
+            color: #d1d5db;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        nav.doc-nav a:hover, nav.doc-nav a.active {
+            border-color: #60a5fa;
+            color: #ffffff;
+            background: #222222;
+        }
+
+        pre, code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.88em;
+        }
+
+        pre {
+            background: #181818;
+            border: 1px solid #282828;
+            border-radius: 4px;
+            padding: 1rem;
+            overflow-x: auto;
+            color: #e5e7eb;
+            margin: 1rem 0 1.5rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+        ul { margin: 0 0 1.5rem 1.5rem; }
+        li { margin-bottom: 0.4rem; }
+
+        .footer {
+            margin-top: 4rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #222222;
+            color: #6b7280;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Log Sources & Input Protocols</h1>
+    <div class="subtitle">Complete technical specification for reading Caddy v2 access logs</div>
+
+    <nav class="doc-nav">
+        <a href="index.html">Overview</a>
+        <a href="installation.html">Installation</a>
+        <a href="sources.html" class="active">Log Sources</a>
+        <a href="subcommands.html">Subcommands</a>
+        <a href="security.html">Threat Detector</a>
+        <a href="tui-html.html">TUI & HTML Reports</a>
+    </nav>
+
+    <h2>1. Local Log Files & Path Globs</h2>
+    <p>Read directly from local JSON access log files on disk. If positional source arguments are omitted, <code>caddy-analyze</code> automatically checks for local log files in <code>./access.log</code>, <code>./caddy.log</code>, or <code>/var/log/caddy/access.log</code>:</p>
+    <pre># Single access log file
+caddy-analyze /var/log/caddy/access.log
+
+# Multiple files using wildcard globs
+caddy-analyze /var/log/caddy/*.log
+
+# Auto-discovery mode (runs against default local log paths)
+caddy-analyze</pre>
+
+    <h2>2. Standard Input Pipe (<code>-</code>)</h2>
+    <p>Use <code>-</code> to pipe structured log content from standard input. This enables seamless integration with unix utilities like <code>cat</code>, <code>zcat</code>, <code>grep</code>, or remote SSH streams:</p>
+    <pre># Read compressed gzipped log archives
+zcat /var/log/caddy/access.log*.gz | caddy-analyze -
+
+# Read remote logs via SSH tunnel
+ssh user@remote-server "cat /var/log/caddy/access.log" | caddy-analyze -</pre>
+
+    <h2>3. Docker Containers (<code>docker://</code>)</h2>
+    <p>Stream JSON logs directly from the Docker daemon socket using container names or container IDs:</p>
+    <pre># Read logs from a running Docker container
+caddy-analyze docker://my-caddy-container
+
+# Real-time log tailing from Docker
+caddy-analyze tail docker://my-caddy-container</pre>
+    <p><em>Note: Requires permissions to access <code>/var/run/docker.sock</code>. Add your user to the <code>docker</code> group if permission is denied.</em></p>
+
+    <h2>4. Kubernetes Pods (<code>k8s://</code>)</h2>
+    <p>Connects directly to Kubernetes pods using your active <code>kubectl</code> context configuration:</p>
+    <pre># Read logs from pod in default namespace
+caddy-analyze k8s://caddy-pod-abc12
+
+# Specify namespace using -n or --namespace flag
+caddy-analyze k8s://caddy-pod-abc12 -n production</pre>
+
+    <h2>5. Systemd Journalctl (<code>journalctl://</code>)</h2>
+    <p>Reads log streams directly from the systemd journal for Caddy service units:</p>
+    <pre># Read systemd unit journal
+caddy-analyze journalctl://caddy.service</pre>
+
+    <h2>6. Handling Permission Denied Errors</h2>
+    <p>When Caddy log files are owned by <code>root</code> or <code>caddy:caddy</code> with restricted <code>0600</code> permissions, <code>caddy-analyze</code> outputs a helpful diagnostic hint:</p>
+    <pre>error: permission denied reading /var/log/caddy/access.log
+💡 Hint: Run with sudo: sudo caddy-analyze /var/log/caddy/access.log
+💡 Or add your user to the caddy group: sudo usermod -aG caddy $USER</pre>
+
+    <div class="footer">
+        <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
+    </div>
+
+</body>
+</html>
