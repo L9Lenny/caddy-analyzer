@@ -120,7 +120,7 @@ func init() {
 	flags.BoolVarP(&flagCompact, "compact", "c", false, "Compact output mode")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
-	rootCmd.Version = "0.1.0"
+	rootCmd.Version = "0.1.1"
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	addHiddenCompletionCmd()
 }
