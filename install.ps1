@@ -14,23 +14,24 @@ if (-not $Tag) { $Tag = "v0.1.0" }
 $VersionNum = $Tag.TrimStart('v')
 $Url = "https://github.com/$Repo/releases/download/$Tag/caddy-analyzer_${VersionNum}_windows_${Arch}.zip"
 
-$InstallDir = "$env:LOCALAPPDATA\caddy-analyze"
-if (-not (Test-Path $InstallDir)) {
-    New-Item -ItemType Directory -Path $InstallDir | Out-Null
+$InstallDir = Join-Path $env:LOCALAPPDATA "caddy-analyze"
+if (-not (Test-Path -Path $InstallDir)) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
 $ZipPath = Join-Path $env:TEMP "caddy-analyze.zip"
-Write-Host "⚡ Downloading caddy-analyze $Tag ($Arch) for Windows..." -ForegroundColor Cyan
+Write-Host "[*] Downloading caddy-analyze $Tag ($Arch) for Windows..." -ForegroundColor Cyan
 
 Invoke-WebRequest -Uri $Url -OutFile $ZipPath
 Expand-Archive -Path $ZipPath -DestinationPath $InstallDir -Force
 Remove-Item -Path $ZipPath -Force
 
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($UserPath -notlike "*$InstallDir*") {
-    [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-    Write-Host "✔ Added $InstallDir to User PATH." -ForegroundColor Green
+if ($UserPath -notlike "*caddy-analyze*") {
+    $NewPath = "$UserPath;$InstallDir"
+    [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
+    Write-Host "[+] Added $InstallDir to User PATH." -ForegroundColor Green
 }
 
-Write-Host "✔ Success! caddy-analyze $Tag installed to $InstallDir\$BinaryName" -ForegroundColor Green
+Write-Host "[+] Success! caddy-analyze $Tag installed to $InstallDir\$BinaryName" -ForegroundColor Green
 Write-Host "Restart your terminal and run 'caddy-analyze --help' to get started." -ForegroundColor Yellow
