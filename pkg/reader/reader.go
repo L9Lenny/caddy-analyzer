@@ -116,11 +116,11 @@ func (r *FileReader) Read(ctx context.Context) (<-chan string, error) {
 		for _, path := range r.paths {
 			if r.follow {
 				if err := readFileAndFollow(ctx, path, out); err != nil {
-					fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+					printReadError(path, err)
 				}
 			} else {
 				if err := readFileLines(ctx, path, out); err != nil {
-					fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+					printReadError(path, err)
 				}
 			}
 		}
@@ -303,4 +303,14 @@ func execLines(ctx context.Context, cmd *exec.Cmd, out chan string) (<-chan stri
 func isTerminal() bool {
 	stat, _ := os.Stdin.Stat()
 	return (stat.Mode() & os.ModeCharDevice) != 0
+}
+
+func printReadError(path string, err error) {
+	if os.IsPermission(err) || strings.Contains(err.Error(), "permission denied") {
+		fmt.Fprintf(os.Stderr, "error: permission denied reading %s\n", path)
+		fmt.Fprintf(os.Stderr, "💡 Hint: Run with sudo: sudo caddy-analyze %s\n", path)
+		fmt.Fprintf(os.Stderr, "💡 Or add your user to the caddy group: sudo usermod -aG caddy $USER\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+	}
 }
