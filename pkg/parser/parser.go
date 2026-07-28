@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -10,16 +11,17 @@ import (
 )
 
 type rawLog struct {
-	Level   string          `json:"level"`
-	TS      json.Number     `json:"ts"`
-	Logger  string          `json:"logger"`
-	Msg     string          `json:"msg"`
-	Request *rawRequest     `json:"request"`
-	Status  json.Number     `json:"status"`
-	Size    json.Number     `json:"size"`
-	Duration json.Number    `json:"duration"`
-	Latency  json.Number    `json:"latency"`
-	LatencyS json.Number    `json:"latency_seconds"`
+	Level       string              `json:"level"`
+	TS          json.Number         `json:"ts"`
+	Logger      string              `json:"logger"`
+	Msg         string              `json:"msg"`
+	Request     *rawRequest         `json:"request"`
+	Status      json.Number         `json:"status"`
+	Size        json.Number         `json:"size"`
+	Duration    json.Number         `json:"duration"`
+	Latency     json.Number         `json:"latency"`
+	LatencyS    json.Number         `json:"latency_seconds"`
+	RespHeaders map[string][]string `json:"resp_headers"`
 }
 
 type rawRequest struct {
@@ -30,9 +32,23 @@ type rawRequest struct {
 	RemoteIP   string              `json:"remote_ip"`
 	Proto      string              `json:"proto"`
 	Headers    map[string][]string `json:"headers"`
+	TLS        *rawTLS             `json:"tls"`
+}
+
+type rawTLS struct {
+	Resumed     bool        `json:"resumed"`
+	Version     json.Number `json:"version"`
+	CipherSuite json.Number `json:"cipher_suite"`
+	Proto       string      `json:"proto"`
+	ServerName  string      `json:"server_name"`
 }
 
 func Parse(line string) (*types.LogEntry, error) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil, nil
+	}
+
 	var raw rawLog
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		return nil, fmt.Errorf("json parse: %w", err)
@@ -63,13 +79,15 @@ func Parse(line string) (*types.LogEntry, error) {
 		entry.Host = raw.Request.Host
 		entry.RemoteAddr = raw.Request.RemoteAddr
 		entry.RemoteIP = raw.Request.RemoteIP
-		entry.Proto = raw.Request.Proto
+		entry.Proto = normalizeProto(raw.Request.Proto)
 
 		if ua, ok := raw.Request.Headers["User-Agent"]; ok && len(ua) > 0 {
 			entry.UserAgent = ua[0]
+			classifyUserAgent(entry)
 		}
 		if ref, ok := raw.Request.Headers["Referer"]; ok && len(ref) > 0 {
 			entry.Referer = ref[0]
+			entry.RefererDomain = extractDomain(ref[0])
 		}
 
 		if entry.RemoteIP == "" && entry.RemoteAddr != "" {
@@ -78,6 +96,18 @@ func Parse(line string) (*types.LogEntry, error) {
 			} else {
 				entry.RemoteIP = entry.RemoteAddr
 			}
+		}
+
+		if raw.Request.TLS != nil {
+			entry.TLSVersion = formatTLSVersion(raw.Request.TLS.Version)
+			entry.TLSCipher = raw.Request.TLS.CipherSuite.String()
+			entry.TLSServerName = raw.Request.TLS.ServerName
+		}
+	}
+
+	if raw.RespHeaders != nil {
+		if ct, ok := raw.RespHeaders["Content-Type"]; ok && len(ct) > 0 {
+			entry.ContentType = ct[0]
 		}
 	}
 
@@ -108,4 +138,109 @@ func parseDuration(values ...json.Number) float64 {
 	return 0
 }
 
+func formatTLSVersion(num json.Number) string {
+	if num.String() == "" {
+		return ""
+	}
+	v, err := num.Int64()
+	if err != nil {
+		return num.String()
+	}
+	switch v {
+	case 772:
+		return "TLS 1.3"
+	case 771:
+		return "TLS 1.2"
+	case 770:
+		return "TLS 1.1"
+	case 769:
+		return "TLS 1.0"
+	default:
+		return fmt.Sprintf("TLS 0x%x", v)
+	}
+}
 
+func normalizeProto(p string) string {
+	if p == "" {
+		return "HTTP/1.1"
+	}
+	pUpper := strings.ToUpper(p)
+	if strings.HasPrefix(pUpper, "HTTP/2") || pUpper == "H2" {
+		return "HTTP/2.0"
+	}
+	if strings.HasPrefix(pUpper, "HTTP/3") || pUpper == "H3" {
+		return "HTTP/3.0"
+	}
+	return p
+}
+
+func extractDomain(referer string) string {
+	if referer == "" {
+		return ""
+	}
+	u, err := url.Parse(referer)
+	if err != nil || u.Host == "" {
+		return referer
+	}
+	return u.Host
+}
+
+func classifyUserAgent(entry *types.LogEntry) {
+	ua := strings.ToLower(entry.UserAgent)
+	if ua == "" {
+		return
+	}
+
+	bots := map[string]string{
+		"googlebot":          "Googlebot",
+		"google-read-aloud": "Google-Read-Aloud",
+		"bingbot":            "Bingbot",
+		"yandexbot":          "YandexBot",
+		"duckduckbot":        "DuckDuckBot",
+		"baiduspider":        "Baiduspider",
+		"ahrefsbot":          "AhrefsBot",
+		"semrushbot":         "SemrushBot",
+		"mj12bot":            "MJ12bot",
+		"facebookexternalhit": "FacebookBot",
+		"twitterbot":         "TwitterBot",
+		"python-requests":    "Python Requests",
+		"curl":               "cURL",
+		"wget":               "Wget",
+		"sqlmap":             "sqlmap",
+		"nikto":              "Nikto",
+		"gobuster":           "GoBuster",
+		"dirbuster":          "DirBuster",
+	}
+
+	for key, name := range bots {
+		if strings.Contains(ua, key) {
+			entry.IsBot = true
+			entry.BotName = name
+			break
+		}
+	}
+
+	switch {
+	case strings.Contains(ua, "android"):
+		entry.OS = "Android"
+	case strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad"):
+		entry.OS = "iOS"
+	case strings.Contains(ua, "windows"):
+		entry.OS = "Windows"
+	case strings.Contains(ua, "macintosh") || strings.Contains(ua, "mac os"):
+		entry.OS = "macOS"
+	case strings.Contains(ua, "linux"):
+		entry.OS = "Linux"
+	}
+
+	switch {
+	case strings.Contains(ua, "edg/"):
+		entry.Browser = "Edge"
+	case strings.Contains(ua, "chrome/"):
+		entry.Browser = "Chrome"
+	case strings.Contains(ua, "firefox/"):
+		entry.Browser = "Firefox"
+	case strings.Contains(ua, "safari/") && !strings.Contains(ua, "chrome/"):
+		entry.Browser = "Safari"
+	}
+}

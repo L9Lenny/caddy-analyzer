@@ -7,21 +7,30 @@ import (
 )
 
 type LogEntry struct {
-	Timestamp   time.Time
-	Level       string
-	Logger      string
-	Method      string
-	URI         string
-	Host        string
-	RemoteAddr  string
-	RemoteIP    string
-	Proto       string
-	UserAgent   string
-	Referer     string
-	Status      int
-	Size        int64
-	Duration    float64
-	Raw         string
+	Timestamp     time.Time
+	Level         string
+	Logger        string
+	Method        string
+	URI           string
+	Host          string
+	RemoteAddr    string
+	RemoteIP      string
+	Proto         string
+	UserAgent     string
+	Referer       string
+	RefererDomain string
+	Status        int
+	Size          int64
+	Duration      float64
+	Raw           string
+	TLSVersion    string
+	TLSCipher     string
+	TLSServerName string
+	IsBot         bool
+	BotName       string
+	Browser       string
+	OS            string
+	ContentType   string
 }
 
 type SourceType string
@@ -41,19 +50,29 @@ type LogSource struct {
 }
 
 type Filters struct {
-	From       time.Time
-	To         time.Time
-	HasFrom    bool
-	HasTo      bool
-	Status     []int
-	Method     string
-	PathGlob   string
-	Host       string
-	MinLatency float64
-	MaxLatency float64
-	MinSize    int64
-	MaxSize    int64
-	RemoteIP   string
+	From        time.Time
+	To          time.Time
+	HasFrom     bool
+	HasTo       bool
+	Status      []int
+	Method      string
+	PathGlob    string
+	Host        string
+	MinLatency  float64
+	MaxLatency  float64
+	MinSize     int64
+	MaxSize     int64
+	RemoteIP    string
+	ExcludeIP   string
+	Only2xx     bool
+	Only3xx     bool
+	Only4xx     bool
+	Only5xx     bool
+	ErrorsOnly  bool
+	NoBots      bool
+	BotsOnly    bool
+	GrepPattern string
+	Compact     bool
 }
 
 type TopField string
@@ -77,6 +96,14 @@ type Stats struct {
 	RemoteAddrCounts map[string]int64
 	RemoteIPCounts   map[string]int64
 	UserAgentCounts  map[string]int64
+	ProtoCounts      map[string]int64
+	TLSVersionCounts map[string]int64
+	BotCounts        map[string]int64
+	RefererCounts    map[string]int64
+	PathBytesMap     map[string]int64
+	IPBytesMap       map[string]int64
+	HumanRequests    int64
+	BotRequests      int64
 	TotalBytes       int64
 	DurationSum      float64
 	MaxDuration      float64
@@ -137,6 +164,12 @@ func NewStats() *Stats {
 		RemoteAddrCounts: make(map[string]int64),
 		RemoteIPCounts:   make(map[string]int64),
 		UserAgentCounts:  make(map[string]int64),
+		ProtoCounts:      make(map[string]int64),
+		TLSVersionCounts: make(map[string]int64),
+		BotCounts:        make(map[string]int64),
+		RefererCounts:    make(map[string]int64),
+		PathBytesMap:     make(map[string]int64),
+		IPBytesMap:       make(map[string]int64),
 		SuspiciousIPs:    make(map[string]int64),
 		MinDuration:      1<<63 - 1,
 		durations:        make([]float64, 0, 10000),
