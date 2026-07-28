@@ -106,6 +106,11 @@ func (r *Report) printTable() {
 	total := s.TotalRequests
 	useColor := r.useColor()
 
+	if r.detect {
+		r.printDetectTable(s, total, useColor)
+		return
+	}
+
 	if useColor {
 		fmt.Fprintln(r.writer, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
 		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 45)))
@@ -189,39 +194,6 @@ func (r *Report) printTable() {
 		fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
 	}
 
-	if r.detect {
-		secHeader := "SECURITY THREAT INSPECTION [DETECT MODE]"
-		if useColor {
-			secHeader = styleHeader.Render(secHeader)
-		}
-		fmt.Fprintf(w, "%s\n", secHeader)
-
-		if len(s.SuspiciousIPs) > 0 {
-			alertLabel := fmt.Sprintf("[ALERT] THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
-			if useColor {
-				alertLabel = styleError.Render(alertLabel)
-			}
-			fmt.Fprintf(w, "  %s\n", alertLabel)
-
-			fmt.Fprintf(w, "  Top Offending IPs:\n")
-			items := analysis.TopN(s.SuspiciousIPs, 10)
-			for _, item := range items {
-				ipLine := fmt.Sprintf("    - %-18s %d malicious requests", item.Key, item.Count)
-				if useColor {
-					ipLine = styleError.Render(ipLine)
-				}
-				fmt.Fprintf(w, "%s\n", ipLine)
-			}
-			fmt.Fprintf(w, "  Hint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n\n")
-		} else {
-			cleanMsg := fmt.Sprintf("  [OK] CLEAN: 0 security threats detected across %d requests", total)
-			if useColor {
-				cleanMsg = styleOK.Render(cleanMsg)
-			}
-			fmt.Fprintf(w, "%s\n\n", cleanMsg)
-		}
-	}
-
 	if r.top > 0 {
 		if r.sections.Path {
 			title := fmt.Sprintf("Top %d Paths", r.top)
@@ -276,6 +248,63 @@ func (r *Report) printTable() {
 			fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.HostCounts, r.top), total, useColor)
 		}
+	}
+
+	w.Flush()
+}
+
+func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
+	if useColor {
+		fmt.Fprintln(r.writer, styleHeader.Render("SECURITY THREAT INSPECTION REPORT"))
+		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 50)))
+	} else {
+		fmt.Fprintln(r.writer, "SECURITY THREAT INSPECTION REPORT")
+		fmt.Fprintln(r.writer, strings.Repeat("=", 50))
+	}
+	fmt.Fprintln(r.writer)
+
+	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
+
+	duration := "N/A"
+	if !s.EndTime.IsZero() && !s.StartTime.IsZero() {
+		duration = s.EndTime.Sub(s.StartTime).Round(time.Second).String()
+	}
+
+	label := "Period:"
+	if useColor {
+		label = styleLabel.Render("Period:")
+	}
+	fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
+
+	label = "Total Analyzed:"
+	if useColor {
+		label = styleLabel.Render("Total Analyzed:")
+	}
+	fmt.Fprintf(w, "%s\t%d requests\n\n", label, total)
+
+	if len(s.SuspiciousIPs) > 0 {
+		alertLabel := fmt.Sprintf("[ALERT] THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
+		if useColor {
+			alertLabel = styleError.Render(alertLabel)
+		}
+		fmt.Fprintf(w, "%s\n", alertLabel)
+
+		fmt.Fprintf(w, "Top Offending IPs:\n")
+		items := analysis.TopN(s.SuspiciousIPs, 10)
+		for _, item := range items {
+			ipLine := fmt.Sprintf("  - %-18s %d malicious requests", item.Key, item.Count)
+			if useColor {
+				ipLine = styleError.Render(ipLine)
+			}
+			fmt.Fprintf(w, "%s\n", ipLine)
+		}
+		fmt.Fprintf(w, "\nHint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n")
+	} else {
+		cleanMsg := fmt.Sprintf("[OK] CLEAN: 0 security threats or scanner probes detected across %d requests", total)
+		if useColor {
+			cleanMsg = styleOK.Render(cleanMsg)
+		}
+		fmt.Fprintf(w, "%s\n", cleanMsg)
 	}
 
 	w.Flush()

@@ -1,6 +1,15 @@
-# caddy-analyzer
+<div align="center">
 
-Fast, zero-dependency access log analyzer, security threat inspector, and TUI dashboard designed natively for **Caddy v2 structured JSON access logs**.
+```
+  ██████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗    █████╗ ███╗   ██╗██╗   ██╗██╗  ██╗███████╗███████╗██████╗ 
+ ██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝   ██╔══██╗████╗  ██║██║   ██║██║  ██║╚══███╔╝██╔════╝██╔══██╗
+ ██║     ███████║██║  ██║██║  ██║ ╚████╔╝    ███████║██╔██╗ ██║██║   ██║███████║  ███╔╝ █████╗  ██████╔╝
+ ██║     ██╔══██║██║  ██║██║  ██║  ╚██╔╝     ██╔══██║██║╚██╗██║██║   ██║██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗
+ ╚██████╗██║  ██║██████╔╝██████╔╝   ██║      ██║  ██║██║ ╚████║╚██████╔╝██║  ██║███████╗███████╗██║  ██║
+  ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
+```
+
+### ⚡ The Ultimate Fast, Visual & Intelligent Access Log Analyzer for Caddy v2 ⚡
 
 [![Go Version](https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go)](https://go.dev)
 [![Go Reference](https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg)](https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer)
@@ -9,24 +18,31 @@ Fast, zero-dependency access log analyzer, security threat inspector, and TUI da
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.1.0-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
 
-Documentation: [https://l9lenny.github.io/caddy-analyzer/](https://l9lenny.github.io/caddy-analyzer/)
+---
+
+**`caddy-analyzer`** is a ultra-fast, zero-config CLI tool, interactive TUI dashboard, threat detector, and offline HTML report generator designed natively for **Caddy v2 structured JSON access logs**.
+
+📖 **Official Documentation**: [https://l9lenny.github.io/caddy-analyzer/](https://l9lenny.github.io/caddy-analyzer/)
+
+</div>
 
 ---
 
-## Features
+## ✨ Features
 
-- **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex definition required).
-- **Security Threat Inspector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools.
-- **Firewall Auto-Blocking Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` rate thresholds.
-- **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
-- **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side to detect 5xx error spikes, RPS shifts, and latency regressions.
-- **Offline HTML Report Export (`-f html`)**: Generates standalone, dark-mode visual web reports for sharing with team members.
-- **6-Tab Interactive TUI Dashboard (`--watch`)**: Live Bubbletea/Lipgloss dashboard featuring real-time log streaming, security alerts, and top metrics.
-- **Multi-Source Support**: Read from files (`access.log`), stdin (`-`), Docker (`docker://caddy`), Kubernetes (`k8s://pod`), and systemd (`journalctl://caddy`).
+- ⚡ **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex configs required).
+- 📊 **Visual Terminal Bar Charts**: Displays Unicode proportion bars (`████████░░`) and Lipgloss status badges directly in your terminal.
+- 🛡️ **Built-in Threat & Anomaly Detector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools.
+- 🚫 **Real-time Firewall Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` thresholds.
+- 🤖 **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
+- 🔍 **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side (e.g. before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.
+- 🌐 **Interactive Single-File HTML Dashboard (`-f html`)**: Generates standalone, dark-mode visual web reports containing SVG charts for sharing with team members.
+- 📺 **6-Tab Interactive TUI Dashboard (`--watch`)**: Live Bubbletea/Lipgloss dashboard featuring real-time log streaming, security alerts, and top metrics.
+- 🐳 **Multi-Source Support**: Read from files (`access.log`), stdin (`-`), Docker (`docker://caddy`), Kubernetes (`k8s://pod`), and systemd (`journalctl://caddy`).
 
 ---
 
-## Installation
+## 📦 Installation
 
 ### Linux & macOS (One-Line Installer)
 
@@ -54,7 +70,7 @@ docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/acc
 
 ---
 
-## Quick Start & Auto-Configuration
+## ⚡ Quick Start & Auto-Configuration
 
 Set your default log source once so you don't have to specify log file paths on every run:
 
@@ -77,7 +93,7 @@ caddy-analyze -f html -o report.html --detect
 
 ---
 
-## Command Reference
+## 📖 Command Reference
 
 ```
 caddy-analyze [flags] [source...]
@@ -92,11 +108,11 @@ Subcommands:
   unban <ip...>                         Remove IP address block from iptables
 ```
 
-### Flags Reference
+### 🚩 Flags Reference
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--detect` | `-d` | `false` | Enable security threat detection engine (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners) |
+| `--detect` | `-d` | `false` | Enable security threat detection mode (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners) |
 | `--format` | `-f` | `table` | Set report output format (`table`, `json`, `csv`, `html`) |
 | `--output` | `-o` | `""` | Write analysis output to specified destination file instead of stdout |
 | `--watch` | `-w` | `false` | Launch full-screen 6-tab interactive terminal TUI dashboard (Bubbletea) |
@@ -118,7 +134,7 @@ Subcommands:
 
 ---
 
-## Security Detection Engine (`--detect`)
+## 🛡️ Security Detection Engine (`--detect`)
 
 Scans every request against a security pattern engine:
 
@@ -134,6 +150,12 @@ Scans every request against a security pattern engine:
 
 ---
 
-## License
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Check out the [Contributing Guide](CONTRIBUTING.md) to get started.
+
+---
+
+## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.
