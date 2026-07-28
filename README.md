@@ -70,27 +70,29 @@ docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/acc
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start & Auto-Configuration
+
+Set your default log source once so you don't have to specify log file paths on every run:
 
 ```bash
-# Auto-detect local log file or run against log file
-caddy-analyze /var/log/caddy/access.log
+# Set default log source once (local or --global)
+caddy-analyze config /var/log/caddy/access.log
 
-# Run threat detection engine
-caddy-analyze --detect /var/log/caddy/access.log
-
-# Filter slow requests (> 500ms) and exlude bots
-caddy-analyze --slow 500ms --no-bots /var/log/caddy/access.log
+# Now run commands without specifying paths!
+caddy-analyze
+caddy-analyze --detect
+caddy-analyze top ip
+caddy-analyze --slow 500ms --no-bots
 
 # Stream colorized logs in real time
 caddy-analyze tail docker://my-caddy
 
-# Generate interactive dark-mode HTML report
-caddy-analyze -f html -o report.html --detect /var/log/caddy/access.log
+# Generate standalone dark-mode HTML report
+caddy-analyze -f html -o report.html --detect
+```
 
 # Compare logs before vs after deployment
 caddy-analyze diff baseline.log current.log
-```
 
 ---
 

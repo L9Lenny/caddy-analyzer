@@ -100,24 +100,46 @@
         <li><a href="tui-html.html"><strong>5. TUI Dashboard & HTML Reports</strong></a> — Complete guide to the 6-tab interactive terminal interface (<code>--watch</code>) and standalone dark-mode HTML web reports (<code>-f html</code>).</li>
     </ul>
 
-    <h2>Quickstart Commands</h2>
-    <pre># Run terminal analysis on access log
-caddy-analyze /var/log/caddy/access.log
+    <h2>Quickstart & Auto-Configuration</h2>
+    <p>To avoid typing your log file or Docker container path every time you run a command, <code>caddy-analyze</code> offers persistent default configuration and zero-config auto-discovery:</p>
+
+    <h3>1. Set Persistent Default Log Source (Recommended)</h3>
+    <p>Configure your log source once, and all future commands will read from it automatically:</p>
+    <pre># Set local default log path (saved to ./caddy-analyzer.json)
+caddy-analyze config /var/log/caddy/access.log
+
+# Or set global default log path for all directories (saved to ~/.config/caddy-analyzer/config.json)
+caddy-analyze config docker://my-caddy --global</pre>
+
+    <p>Once configured, you never need to type the log path again!</p>
+    <pre># All commands read from your configured default log source automatically:
+caddy-analyze
+caddy-analyze --detect
+caddy-analyze top ip
+caddy-analyze --watch</pre>
+
+    <h3>2. Zero-Config Auto-Discovery</h3>
+    <p>If no configuration file is set and no path argument is passed, <code>caddy-analyze</code> automatically scans for local log files in <code>./access.log</code>, <code>./caddy.log</code>, or <code>/var/log/caddy/access.log</code>.</p>
+
+    <h2>Quick Command Reference</h2>
+    <pre># Run terminal analysis on default configured log
+caddy-analyze
 
 # Enable threat detection engine
-caddy-analyze --detect /var/log/caddy/access.log
+caddy-analyze --detect
 
 # Stream colorized logs in real time from Docker
 caddy-analyze tail docker://my-caddy
 
 # Inspect top client IP addresses
-caddy-analyze top ip /var/log/caddy/access.log
+caddy-analyze top ip
 
 # Compare baseline log vs current log
 caddy-analyze diff baseline.log current.log
 
-# Save default log source configuration
-caddy-analyze config /var/log/caddy/access.log</pre>
+# Check or reset default log source configuration
+caddy-analyze config show
+caddy-analyze config reset</pre>
 
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>. Source code on <a href="https://github.com/L9Lenny/caddy-analyzer">GitHub</a>.</p>
