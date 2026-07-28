@@ -22,21 +22,25 @@ type view int
 
 const (
 	viewSummary view = iota
+	viewRealtime
+	viewSecurity
 	viewTopIPs
 	viewTopPaths
 	viewTopUA
 )
 
 type Model struct {
-	engine   *analysis.Engine
-	linesCh  chan string
-	ready    bool
-	width    int
-	height   int
-	current  view
-	err      error
-	stats    *types.Stats
-	rps      float64
+	engine     *analysis.Engine
+	detector   *analysis.Detector
+	linesCh    chan string
+	ready      bool
+	width      int
+	height     int
+	current    view
+	err        error
+	stats      *types.Stats
+	rps        float64
+	recentLogs []string
 
 	ipTable   table.Model
 	pathTable table.Model
@@ -55,10 +59,16 @@ var (
 )
 
 func NewModel(linesCh chan string) Model {
+	det := analysis.NewDetector()
+	eng := analysis.New(types.Filters{})
+	eng.SetDetector(det)
+
 	return Model{
-		engine:  analysis.New(types.Filters{}),
-		linesCh: linesCh,
-		current: viewSummary,
+		engine:     eng,
+		detector:   det,
+		linesCh:    linesCh,
+		current:    viewSummary,
+		recentLogs: make([]string, 0, 20),
 	}
 }
 
@@ -101,12 +111,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "1":
 			m.current = viewSummary
 		case "2":
+			m.current = viewRealtime
+		case "3":
+			m.current = viewSecurity
+		case "4":
 			m.current = viewTopIPs
 			m.refreshTables()
-		case "3":
+		case "5":
 			m.current = viewTopPaths
 			m.refreshTables()
-		case "4":
+		case "6":
 			m.current = viewTopUA
 		case "tab", "right":
 			if m.current < viewTopUA {
@@ -119,14 +133,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refreshTables()
 			}
 		case "r":
-			m.engine = analysis.New(types.Filters{})
+			eng := analysis.New(types.Filters{})
+			eng.SetDetector(m.detector)
+			m.engine = eng
 			m.stats = nil
+			m.recentLogs = make([]string, 0, 20)
 		}
 
 	case LineMsg:
-		entry, err := parser.Parse(string(msg))
+		line := string(msg)
+		entry, err := parser.Parse(line)
 		if err == nil && entry != nil {
 			m.engine.Process(entry)
+			logStr := fmt.Sprintf("[%s] %d %s %s (%s) - %s",
+				entry.Timestamp.Format("15:04:05"), entry.Status, entry.Method, entry.Path(), formatDuration(entry.Duration), entry.RemoteIP)
+			if len(m.recentLogs) >= 15 {
+				m.recentLogs = m.recentLogs[1:]
+			}
+			m.recentLogs = append(m.recentLogs, logStr)
 		}
 		return m, waitForLines(m.linesCh)
 
@@ -209,13 +233,13 @@ func (m *Model) refreshTables() {
 
 func (m Model) View() string {
 	if !m.ready {
-		return " Caddy Monitor — loading...\n"
+		return " ⚡ Caddy Dashboard — loading...\n"
 	}
 
 	var b strings.Builder
 
-	b.WriteString(styleTitle.Render(" Caddy Monitor"))
-	b.WriteString(styleHelp.Render("  [q] quit  [1-4] views  [tab] next  [r] reset"))
+	b.WriteString(styleTitle.Render("⚡ Caddy Live Dashboard"))
+	b.WriteString(styleHelp.Render("  [q] quit  [1-6] tabs  [tab] next  [r] reset"))
 	b.WriteString("\n")
 	b.WriteString(styleDimLine())
 	b.WriteString("\n\n")
@@ -223,6 +247,10 @@ func (m Model) View() string {
 	switch m.current {
 	case viewSummary:
 		m.renderSummary(&b)
+	case viewRealtime:
+		m.renderRealtime(&b)
+	case viewSecurity:
+		m.renderSecurity(&b)
 	case viewTopIPs:
 		m.renderIPs(&b)
 	case viewTopPaths:
@@ -238,7 +266,7 @@ func (m Model) View() string {
 }
 
 func (m Model) viewTabs() string {
-	tabs := []string{"Summary", "Top IPs", "Top Paths", "User Agents"}
+	tabs := []string{"Summary", "Realtime Stream", "Security", "Top IPs", "Top Paths", "User Agents"}
 	var parts []string
 	for i, t := range tabs {
 		if view(i) == m.current {
@@ -263,15 +291,15 @@ func (m Model) renderSummary(b *strings.Builder) {
 	fmt.Fprintf(b, "  %s %.1f\n\n", styleLabel.Render("Requests/sec:"), m.rps)
 
 	fmt.Fprintf(b, "  %s:\n", styleLabel.Render("Status Codes"))
-	fmt.Fprintf(b, "    2xx: %s\n", styleOK.Render(fmt.Sprintf("%d (%.1f%%)", s.Status2xx, pct(s.Status2xx, total))))
-	fmt.Fprintf(b, "    3xx: %s\n", styleInfo.Render(fmt.Sprintf("%d (%.1f%%)", s.Status3xx, pct(s.Status3xx, total))))
-	fmt.Fprintf(b, "    4xx: %s\n", styleWarn.Render(fmt.Sprintf("%d (%.1f%%)", s.Status4xx, pct(s.Status4xx, total))))
-	fmt.Fprintf(b, "    5xx: %s\n\n", styleError.Render(fmt.Sprintf("%d (%.1f%%)", s.Status5xx, pct(s.Status5xx, total))))
+	fmt.Fprintf(b, "    2xx Success: %s\n", styleOK.Render(fmt.Sprintf("%d (%.1f%%)", s.Status2xx, pct(s.Status2xx, total))))
+	fmt.Fprintf(b, "    3xx Redir:   %s\n", styleInfo.Render(fmt.Sprintf("%d (%.1f%%)", s.Status3xx, pct(s.Status3xx, total))))
+	fmt.Fprintf(b, "    4xx Client:  %s\n", styleWarn.Render(fmt.Sprintf("%d (%.1f%%)", s.Status4xx, pct(s.Status4xx, total))))
+	fmt.Fprintf(b, "    5xx Server:  %s\n\n", styleError.Render(fmt.Sprintf("%d (%.1f%%)", s.Status5xx, pct(s.Status5xx, total))))
 
 	fmt.Fprintf(b, "  %s %s\n", styleLabel.Render("Response Size:"), formatBytes(s.TotalBytes))
 	fmt.Fprintf(b, "  %s %s\n\n", styleLabel.Render("Avg Size:"), formatBytes(avgSize(s.TotalBytes, total)))
 
-	fmt.Fprintf(b, "  %s:\n", styleLabel.Render("Duration"))
+	fmt.Fprintf(b, "  %s:\n", styleLabel.Render("Latency Percentiles"))
 	if s.MinDuration < 1<<62 {
 		fmt.Fprintf(b, "    Min: %s\n", formatDuration(s.MinDuration))
 	}
@@ -279,6 +307,29 @@ func (m Model) renderSummary(b *strings.Builder) {
 	fmt.Fprintf(b, "    Max: %s\n", formatDuration(s.MaxDuration))
 	fmt.Fprintf(b, "    P50: %s\n", formatDuration(s.Percentile50))
 	fmt.Fprintf(b, "    P95: %s\n", formatDuration(s.Percentile95))
+}
+
+func (m Model) renderRealtime(b *strings.Builder) {
+	fmt.Fprintf(b, "  %s:\n\n", styleLabel.Render("Live Log Stream"))
+	if len(m.recentLogs) == 0 {
+		fmt.Fprintf(b, "  Waiting for log events...\n")
+		return
+	}
+	for _, l := range m.recentLogs {
+		fmt.Fprintf(b, "  %s\n", l)
+	}
+}
+
+func (m Model) renderSecurity(b *strings.Builder) {
+	if m.stats == nil || len(m.stats.SuspiciousIPs) == 0 {
+		fmt.Fprintf(b, "  %s\n  No suspicious activities detected.\n", styleOK.Render("🛡️ Security Status: CLEAR"))
+		return
+	}
+	fmt.Fprintf(b, "  %s:\n\n", styleError.Render("🚨 Detected Suspicious Activity"))
+	items := analysis.TopN(m.stats.SuspiciousIPs, 15)
+	for i, item := range items {
+		fmt.Fprintf(b, "  %d. ⚠️ IP %-18s (%d suspicious requests)\n", i+1, item.Key, item.Count)
+	}
 }
 
 func (m Model) renderIPs(b *strings.Builder) {
@@ -355,7 +406,7 @@ func formatDuration(d float64) string {
 }
 
 func styleDimLine() string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("236")).Render(strings.Repeat("━", 50))
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("236")).Render(strings.Repeat("━", 60))
 }
 
 func max(a, b int64) int64 {
