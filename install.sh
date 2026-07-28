@@ -47,9 +47,9 @@ if [ -z "$TAG" ]; then
     TAG="v0.1.0"
 fi
 
-URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyze_${TAG#v}_${OS}_${ARCH}.tar.gz"
+URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyzer_${TAG#v}_${OS}_${ARCH}.tar.gz"
 if ! curl -sSf -I "$URL" >/dev/null 2>&1; then
-    URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyze-${OS}-${ARCH}"
+    URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyze_${TAG#v}_${OS}_${ARCH}.tar.gz"
 fi
 
 echo "⚡ Installing $BINARY_NAME $TAG for $OS/$ARCH..."

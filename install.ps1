@@ -12,7 +12,7 @@ $Tag = $LatestRelease.tag_name
 if (-not $Tag) { $Tag = "v0.1.0" }
 
 $VersionNum = $Tag.TrimStart('v')
-$Url = "https://github.com/$Repo/releases/download/$Tag/caddy-analyze_${VersionNum}_windows_${Arch}.zip"
+$Url = "https://github.com/$Repo/releases/download/$Tag/caddy-analyzer_${VersionNum}_windows_${Arch}.zip"
 
 $InstallDir = "$env:LOCALAPPDATA\caddy-analyze"
 if (-not (Test-Path $InstallDir)) {
