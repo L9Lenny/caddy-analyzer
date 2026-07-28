@@ -101,8 +101,27 @@ Subcommands:
   top [dimension] [source...]           Quick top-N metric inspector (path, ip, ua, status, bandwidth)
   diff <baseline_log> <target_log>      Compare two log files for RPS shifts, 5xx spikes, and latency changes
   guard [source...]                     Auto-block malicious IPs in real time via iptables
+  config [show|set|reset|source]        Manage persistent default log source configuration
   block <ip...>                         Manually block IP address via iptables
   unban <ip...>                         Remove IP address block from iptables
+```
+
+### ⚙️ Persistent Configuration (`caddy-analyze config`)
+
+Set a default log source so you can simply run `caddy-analyze` without specifying log paths:
+
+```bash
+# Save default log source locally (./caddy-analyzer.json)
+caddy-analyze config /var/log/caddy/access.log
+
+# Save default log source globally (~/.config/caddy-analyzer/config.json)
+caddy-analyze config docker://my-caddy --global
+
+# Show active configuration and source
+caddy-analyze config show
+
+# Remove configuration file
+caddy-analyze config reset
 ```
 
 ### 📊 Quick Metric Inspector (`caddy-analyze top`)
