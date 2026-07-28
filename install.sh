@@ -52,19 +52,14 @@ if ! curl -sSf -I "$URL" >/dev/null 2>&1; then
     URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyze_${TAG#v}_${OS}_${ARCH}.tar.gz"
 fi
 
-echo "⚡ Installing $BINARY_NAME $TAG for $OS/$ARCH..."
+echo "[*] Installing $BINARY_NAME $TAG for $OS/$ARCH..."
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-if echo "$URL" | grep -q '\.tar\.gz$'; then
-    curl -sSfL "$URL" -o "$TMP_DIR/caddy-analyze.tar.gz"
-    tar -xzf "$TMP_DIR/caddy-analyze.tar.gz" -C "$TMP_DIR"
-    BIN_PATH="$TMP_DIR/$BINARY_NAME"
-else
-    curl -sSfL "$URL" -o "$TMP_DIR/$BINARY_NAME"
-    BIN_PATH="$TMP_DIR/$BINARY_NAME"
-fi
+curl -sSfL "$URL" -o "$TMP_DIR/caddy-analyze.tar.gz"
+tar -xzf "$TMP_DIR/caddy-analyze.tar.gz" -C "$TMP_DIR"
+BIN_PATH="$TMP_DIR/$BINARY_NAME"
 
 chmod +x "$BIN_PATH"
 
@@ -76,5 +71,5 @@ else
     mv "$BIN_PATH" "$DEST_DIR/$BINARY_NAME"
 fi
 
-echo "✔ Success! $BINARY_NAME $TAG installed to $DEST_DIR/$BINARY_NAME"
+echo "[+] Success! $BINARY_NAME $TAG installed to $DEST_DIR/$BINARY_NAME"
 echo "Run '$BINARY_NAME --help' to get started."
