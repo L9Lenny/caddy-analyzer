@@ -28,7 +28,7 @@ func TestReportOutputs(t *testing.T) {
 		format   Format
 		contains string
 	}{
-		{FormatTable, "Caddy Log Analysis Report"},
+		{FormatTable, "CADDY LOG ANALYSIS REPORT"},
 		{FormatJSON, `"total_requests": 1`},
 		{FormatCSV, "total_requests,1"},
 		{FormatHTML, "<!DOCTYPE html>"},

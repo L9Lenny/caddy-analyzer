@@ -107,10 +107,10 @@ func (r *Report) printTable() {
 	useColor := r.useColor()
 
 	if useColor {
-		fmt.Fprintln(r.writer, styleHeader.Render("⚡ Caddy Log Analysis Report"))
-		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("━", 45)))
+		fmt.Fprintln(r.writer, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
+		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 45)))
 	} else {
-		fmt.Fprintln(r.writer, "Caddy Log Analysis Report")
+		fmt.Fprintln(r.writer, "CADDY LOG ANALYSIS REPORT")
 		fmt.Fprintln(r.writer, strings.Repeat("=", 45))
 	}
 	fmt.Fprintln(r.writer)
@@ -190,14 +190,14 @@ func (r *Report) printTable() {
 	}
 
 	if r.detect {
-		secHeader := "🛡️ SECURITY THREAT INSPECTION [DETECTOR ACTIVE]"
+		secHeader := "SECURITY THREAT INSPECTION [DETECT MODE]"
 		if useColor {
 			secHeader = styleHeader.Render(secHeader)
 		}
 		fmt.Fprintf(w, "%s\n", secHeader)
 
 		if len(s.SuspiciousIPs) > 0 {
-			alertLabel := fmt.Sprintf("🚨 THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
+			alertLabel := fmt.Sprintf("[ALERT] THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
 			if useColor {
 				alertLabel = styleError.Render(alertLabel)
 			}
@@ -206,15 +206,15 @@ func (r *Report) printTable() {
 			fmt.Fprintf(w, "  Top Offending IPs:\n")
 			items := analysis.TopN(s.SuspiciousIPs, 10)
 			for _, item := range items {
-				ipLine := fmt.Sprintf("    ⚠ %-18s %d malicious requests", item.Key, item.Count)
+				ipLine := fmt.Sprintf("    - %-18s %d malicious requests", item.Key, item.Count)
 				if useColor {
 					ipLine = styleError.Render(ipLine)
 				}
 				fmt.Fprintf(w, "%s\n", ipLine)
 			}
-			fmt.Fprintf(w, "  💡 Hint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n\n")
+			fmt.Fprintf(w, "  Hint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n\n")
 		} else {
-			cleanMsg := fmt.Sprintf("  ✔ STATUS: CLEAN (0 security threats or scanner probes detected across %d requests)", total)
+			cleanMsg := fmt.Sprintf("  [OK] CLEAN: 0 security threats detected across %d requests", total)
 			if useColor {
 				cleanMsg = styleOK.Render(cleanMsg)
 			}

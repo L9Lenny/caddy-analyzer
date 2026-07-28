@@ -51,10 +51,10 @@ func runDiffCmd(cmd *cobra.Command, args []string) error {
 
 	diff := analysis.CompareStats(baseEngine, currEngine)
 
-	fmt.Println(styleDiffTitle.Render("🔍 Caddy Log Comparative Diff"))
+	fmt.Println(styleDiffTitle.Render("CADDY LOG COMPARATIVE DIFF"))
 	fmt.Println(styleDiffDim.Render("Baseline: ") + baseFile)
 	fmt.Println(styleDiffDim.Render("Target:   ") + currFile)
-	fmt.Println(styleDiffDim.Render(strings.Repeat("━", 50)))
+	fmt.Println(styleDiffDim.Render(strings.Repeat("=", 50)))
 
 	fmt.Printf("\n%-22s  %-15s  %-15s  %-15s\n", "Metric", "Baseline", "Target", "Difference")
 	fmt.Println(styleDiffDim.Render(strings.Repeat("─", 68)))
@@ -64,7 +64,7 @@ func runDiffCmd(cmd *cobra.Command, args []string) error {
 
 	errStr := formatDeltaInt(diff.ErrorsDelta)
 	if diff.ErrorsDelta > 0 {
-		errStr = styleDiffBad.Render(fmt.Sprintf("+%d ⚠️", diff.ErrorsDelta))
+		errStr = styleDiffBad.Render(fmt.Sprintf("+%d", diff.ErrorsDelta))
 	} else if diff.ErrorsDelta < 0 {
 		errStr = styleDiffGood.Render(fmt.Sprintf("%d", diff.ErrorsDelta))
 	}
@@ -74,12 +74,12 @@ func runDiffCmd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%-22s  %-15s  %-15s  %s\n", "Avg Latency", output.FormatDuration(diff.BaseAvgDuration), output.FormatDuration(diff.CurrAvgDuration), latStr)
 
 	if len(diff.NewErrorPaths) > 0 {
-		fmt.Printf("\n%s:\n", styleDiffBad.Render("🚨 New Error Paths Detected in Target"))
+		fmt.Printf("\n%s:\n", styleDiffBad.Render("[ALERT] New Error Paths Detected in Target"))
 		for i, p := range diff.NewErrorPaths {
 			fmt.Printf("  %d. %s\n", i+1, p)
 		}
 	} else {
-		fmt.Printf("\n%s\n", styleDiffGood.Render("✔ No new error paths detected."))
+		fmt.Printf("\n%s\n", styleDiffGood.Render("[OK] No new error paths detected."))
 	}
 
 	return nil

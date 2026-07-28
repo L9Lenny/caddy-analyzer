@@ -108,7 +108,7 @@ func setConfig(source string) error {
 		return fmt.Errorf("write config file: %w", err)
 	}
 
-	fmt.Printf("✔ Config saved: %s\n", path)
+	fmt.Printf("Config saved: %s\n", path)
 	fmt.Printf("  Default log source set to: %s\n", source)
 	return nil
 }
@@ -134,6 +134,6 @@ func resetConfig() error {
 		return fmt.Errorf("remove config file: %w", err)
 	}
 
-	fmt.Printf("✔ Removed config file: %s\n", path)
+	fmt.Printf("Removed config file: %s\n", path)
 	return nil
 }

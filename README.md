@@ -1,15 +1,6 @@
-<div align="center">
+# caddy-analyzer
 
-```
-  ██████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗    █████╗ ███╗   ██╗██╗   ██╗██╗  ██╗███████╗███████╗██████╗ 
- ██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝   ██╔══██╗████╗  ██║██║   ██║██║  ██║╚══███╔╝██╔════╝██╔══██╗
- ██║     ███████║██║  ██║██║  ██║ ╚████╔╝    ███████║██╔██╗ ██║██║   ██║███████║  ███╔╝ █████╗  ██████╔╝
- ██║     ██╔══██║██║  ██║██║  ██║  ╚██╔╝     ██╔══██║██║╚██╗██║██║   ██║██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗
- ╚██████╗██║  ██║██████╔╝██████╔╝   ██║      ██║  ██║██║ ╚████║╚██████╔╝██║  ██║███████╗███████╗██║  ██║
-  ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
-```
-
-### ⚡ The Ultimate Fast, Visual & Intelligent Access Log Analyzer for Caddy v2 ⚡
+Fast, zero-dependency access log analyzer, security threat inspector, and TUI dashboard designed natively for **Caddy v2 structured JSON access logs**.
 
 [![Go Version](https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go)](https://go.dev)
 [![Go Reference](https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg)](https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer)
@@ -18,45 +9,38 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.1.0-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
 
----
-
-**`caddy-analyzer`** is a ultra-fast, zero-config CLI tool, interactive TUI dashboard, threat detector, and offline HTML report generator designed natively for **Caddy v2 structured JSON access logs**.
-
-📖 **Official Documentation**: [https://l9lenny.github.io/caddy-analyzer/](https://l9lenny.github.io/caddy-analyzer/)
-
-</div>
+Documentation: [https://l9lenny.github.io/caddy-analyzer/](https://l9lenny.github.io/caddy-analyzer/)
 
 ---
 
-## ✨ Features
+## Features
 
-- ⚡ **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex configs required).
-- 📊 **Visual Terminal Bar Charts**: Displays Unicode proportion bars (`████████░░`) and Lipgloss status badges directly in your terminal.
-- 🛡️ **Built-in Threat & Anomaly Detector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools.
-- 🚫 **Real-time Firewall Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` thresholds.
-- 🤖 **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
-- 🔍 **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side (e.g. before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.
-- 🌐 **Interactive Single-File HTML Dashboard (`-f html`)**: Generates standalone, dark-mode visual web reports containing SVG charts for sharing with team members.
-- 📺 **6-Tab Interactive TUI Dashboard (`--watch`)**: Live Bubbletea/Lipgloss dashboard featuring real-time log streaming, security alerts, and top metrics.
-- 🐳 **Multi-Source Support**: Read from files (`access.log`), stdin (`-`), Docker (`docker://caddy`), Kubernetes (`k8s://pod`), and systemd (`journalctl://caddy`).
+- **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex definition required).
+- **Security Threat Inspector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools.
+- **Firewall Auto-Blocking Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` rate thresholds.
+- **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
+- **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side to detect 5xx error spikes, RPS shifts, and latency regressions.
+- **Offline HTML Report Export (`-f html`)**: Generates standalone, dark-mode visual web reports for sharing with team members.
+- **6-Tab Interactive TUI Dashboard (`--watch`)**: Live Bubbletea/Lipgloss dashboard featuring real-time log streaming, security alerts, and top metrics.
+- **Multi-Source Support**: Read from files (`access.log`), stdin (`-`), Docker (`docker://caddy`), Kubernetes (`k8s://pod`), and systemd (`journalctl://caddy`).
 
 ---
 
-## 📦 Installation
+## Installation
 
-### Via 1-Line Installer Script (Linux & macOS)
+### Linux & macOS (One-Line Installer)
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
 ```
 
-### Via PowerShell (Windows)
+### Windows (PowerShell Installer)
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex
 ```
 
-### Via `go install`
+### Via Go Toolchain
 
 ```bash
 go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest
@@ -70,7 +54,7 @@ docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/acc
 
 ---
 
-## ⚡ Quick Start & Auto-Configuration
+## Quick Start & Auto-Configuration
 
 Set your default log source once so you don't have to specify log file paths on every run:
 
@@ -78,7 +62,7 @@ Set your default log source once so you don't have to specify log file paths on 
 # Set default log source once (local or --global)
 caddy-analyze config /var/log/caddy/access.log
 
-# Now run commands without specifying paths!
+# All commands read from your configured default log source automatically:
 caddy-analyze
 caddy-analyze --detect
 caddy-analyze top ip
@@ -91,12 +75,9 @@ caddy-analyze tail docker://my-caddy
 caddy-analyze -f html -o report.html --detect
 ```
 
-# Compare logs before vs after deployment
-caddy-analyze diff baseline.log current.log
-
 ---
 
-## 📖 Command Reference
+## Command Reference
 
 ```
 caddy-analyze [flags] [source...]
@@ -111,46 +92,7 @@ Subcommands:
   unban <ip...>                         Remove IP address block from iptables
 ```
 
-### ⚙️ Persistent Configuration (`caddy-analyze config`)
-
-Set a default log source so you can simply run `caddy-analyze` without specifying log paths:
-
-```bash
-# Save default log source locally (./caddy-analyzer.json)
-caddy-analyze config /var/log/caddy/access.log
-
-# Save default log source globally (~/.config/caddy-analyzer/config.json)
-caddy-analyze config docker://my-caddy --global
-
-# Show active configuration and source
-caddy-analyze config show
-
-# Remove configuration file
-caddy-analyze config reset
-```
-
-### 📊 Quick Metric Inspector (`caddy-analyze top`)
-
-The `top` command provides targeted top-N rankings for specific log dimensions without generating a full report:
-
-```bash
-# Top requested endpoints (default dimension)
-caddy-analyze top /var/log/caddy/access.log
-
-# Top client IP addresses (identify scrapers & DoS sources)
-caddy-analyze top ip /var/log/caddy/access.log
-
-# Top client IPs triggering 5xx server errors
-caddy-analyze top ip /var/log/caddy/access.log --5xx
-
-# Top paths consuming the highest bandwidth (top 20)
-caddy-analyze top bandwidth /var/log/caddy/access.log -t 20
-
-# Top status codes for slow requests (> 500ms)
-caddy-analyze top /var/log/caddy/access.log --by status --slow 500ms
-```
-
-### 🚩 Flags Reference
+### Flags Reference
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
@@ -176,7 +118,7 @@ caddy-analyze top /var/log/caddy/access.log --by status --slow 500ms
 
 ---
 
-## 🛡️ Security Detection Engine (`--detect`)
+## Security Detection Engine (`--detect`)
 
 Scans every request against a security pattern engine:
 
@@ -192,13 +134,6 @@ Scans every request against a security pattern engine:
 
 ---
 
-## 🤝 Contributing
+## License
 
-Contributions, issues, and feature requests are welcome!
-Check out the [Contributing Guide](CONTRIBUTING.md) to get started.
-
----
-
-## 📄 License
-
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more details.
+MIT License. See [LICENSE](LICENSE) for details.
