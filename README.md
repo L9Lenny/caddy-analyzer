@@ -150,24 +150,29 @@ caddy-analyze top bandwidth /var/log/caddy/access.log -t 20
 caddy-analyze top /var/log/caddy/access.log --by status --slow 500ms
 ```
 
-### 🚩 Flags
+### 🚩 Flags Reference
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `html` |
-| `--detect` | `-d` | `false` | Enable threat & anomaly detection engine |
-| `--slow` | | `""` | Filter requests slower than duration (e.g. `500ms`, `1s`) |
-| `--2xx` | | `false` | Filter 2xx status codes |
-| `--3xx` | | `false` | Filter 3xx status codes |
-| `--4xx` | | `false` | Filter 4xx status codes |
-| `--5xx` | | `false` | Filter 5xx status codes |
-| `--errors-only` | `-e` | `false` | Filter 5xx server errors only |
-| `--no-bots` | | `false` | Exclude automated bot and crawler traffic |
-| `--bots-only` | | `false` | Include only automated bot traffic |
-| `--grep` | `-g` | `""` | Search pattern across URI, User-Agent, Remote IP |
-| `--top` | `-t` | `10` | Show top N entries |
-| `--watch` | `-w` | `false` | Live interactive TUI dashboard |
-| `--output` | `-o` | `""` | Write output to specified file path |
+| `--detect` | `-d` | `false` | Enable security threat detection engine (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners) |
+| `--format` | `-f` | `table` | Set report output format (`table`, `json`, `csv`, `html`) |
+| `--output` | `-o` | `""` | Write analysis output to specified destination file instead of stdout |
+| `--watch` | `-w` | `false` | Launch full-screen 6-tab interactive terminal TUI dashboard (Bubbletea) |
+| `--top` | `-t` | `10` | Set maximum number of top entries displayed in tables |
+| `--interval` | `-i` | `""` | Periodically re-run analysis every N duration (e.g. `10s`, `1m`) |
+| `--follow` | `-F` | `false` | Stream and process incoming log lines in real-time follow mode |
+| `--2xx` | | `false` | Filter only successful HTTP 2xx status responses (200–299) |
+| `--3xx` | | `false` | Filter only redirection HTTP 3xx status responses (300–399) |
+| `--4xx` | | `false` | Filter only client error HTTP 4xx status responses (400–499) |
+| `--5xx` | | `false` | Filter only server error HTTP 5xx status responses (500–599) |
+| `--errors-only` | `-e` | `false` | Filter error responses (status &ge; 400) |
+| `--slow` | | `""` | Filter requests slower than specified duration (e.g. `500ms`, `1s`) |
+| `--ip` | | `""` | Filter requests originating from client IP or CIDR subnet |
+| `--exclude-ip` | | `""` | Exclude requests from IP or CIDR subnet |
+| `--no-bots` | | `false` | Exclude search engine crawlers and automated bots |
+| `--bots-only` | | `false` | Include ONLY search engine crawlers and automated bots |
+| `--grep` | `-g` | `""` | Filter entries containing string pattern in URI path, host, or User-Agent |
+| `--compact` | | `false` | Output compact single-line log formatting |
 
 ---
 

@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subcommands Reference — caddy-analyzer</title>
+    <title>Subcommands & Flags Specification — caddy-analyzer</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: #111111;
             color: #d1d5db;
             line-height: 1.6;
-            max-width: 900px;
+            max-width: 960px;
             margin: 0 auto;
             padding: 2rem 1rem;
         }
@@ -92,8 +92,8 @@
 </head>
 <body>
 
-    <h1>Subcommands Reference</h1>
-    <div class="subtitle">Complete technical specification for all caddy-analyzer subcommands</div>
+    <h1>Subcommands & Flags Specification</h1>
+    <div class="subtitle">Complete technical reference for all CLI subcommands, flags, and options</div>
 
     <nav class="doc-nav">
         <a href="index.html">Overview</a>
@@ -104,95 +104,178 @@
         <a href="tui-html.html">TUI & HTML Reports</a>
     </nav>
 
-    <h2>1. <code>caddy-analyze [source]</code> (Core Analyzer)</h2>
-    <p>Runs standard batch analysis over the specified log source, generating a terminal report with visual proportion bar graphs, status code distribution, latency percentiles (p50, p90, p95, p99), bandwidth metrics, and top client IPs/paths.</p>
-    <pre># Basic terminal analysis
-caddy-analyze /var/log/caddy/access.log
+    <h2>1. Comprehensive CLI Flags Reference</h2>
+    <p>All flags can be combined with any subcommand or main analysis execution:</p>
 
-# Filter only 5xx server error requests
-caddy-analyze --5xx /var/log/caddy/access.log
-
-# Exclude search engine crawlers and automated bots
-caddy-analyze --no-bots /var/log/caddy/access.log
-
-# Filter slow requests taking longer than 500 milliseconds
-caddy-analyze --slow 500ms /var/log/caddy/access.log</pre>
-
-    <h2>2. <code>tail [source]</code> (Real-Time Colorized Viewer)</h2>
-    <p>Streams and colorizes Caddy access log entries line-by-line into clean terminal output formatted with HTTP status badges, HTTP method, latency, payload byte size, client IP, and User-Agent classification:</p>
-    <pre># Stream local log file in follow mode
-caddy-analyze tail /var/log/caddy/access.log
-
-# Tail live Docker log stream
-caddy-analyze tail docker://my-caddy</pre>
-
-    <h2>3. <code>top [dimension] [source]</code> (Quick Metric Inspector)</h2>
-    <p>Provides targeted rankings for specific log dimensions without generating a full report:</p>
+    <h3>HTTP Status & Response Filters</h3>
     <table>
         <thead>
             <tr>
-                <th>Dimension</th>
-                <th>Description</th>
-                <th>Example Command</th>
+                <th>Flag</th>
+                <th>Short</th>
+                <th>Default</th>
+                <th>Description & Usage Example</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><code>path</code></td>
-                <td>Top requested HTTP URIs / endpoints (default)</td>
-                <td><code>caddy-analyze top /var/log/caddy/access.log</code></td>
+                <td><code>--2xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter only successful HTTP 2xx status responses (200–299). <code>caddy-analyze --2xx</code></td>
             </tr>
             <tr>
-                <td><code>ip</code></td>
-                <td>Top client IP addresses (identify scrapers & DoS)</td>
-                <td><code>caddy-analyze top ip /var/log/caddy/access.log</code></td>
+                <td><code>--3xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter only redirection HTTP 3xx status responses (300–399). <code>caddy-analyze --3xx</code></td>
             </tr>
             <tr>
-                <td><code>ua</code></td>
-                <td>Top User-Agent strings</td>
-                <td><code>caddy-analyze top ua /var/log/caddy/access.log</code></td>
+                <td><code>--4xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter only client error HTTP 4xx status responses (400–499). <code>caddy-analyze --4xx</code></td>
             </tr>
             <tr>
-                <td><code>status</code></td>
-                <td>Top HTTP response status codes</td>
-                <td><code>caddy-analyze top /var/log/caddy/access.log -b status</code></td>
+                <td><code>--5xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter only server error HTTP 5xx status responses (500–599). <code>caddy-analyze --5xx</code></td>
             </tr>
             <tr>
-                <td><code>bandwidth</code></td>
-                <td>Top paths sorted by total byte bandwidth</td>
-                <td><code>caddy-analyze top bandwidth access.log -t 20</code></td>
+                <td><code>--errors-only</code></td>
+                <td><code>-e</code></td>
+                <td><code>false</code></td>
+                <td>Filter all error responses (HTTP status &ge; 400). <code>caddy-analyze -e</code></td>
             </tr>
         </tbody>
     </table>
 
-    <h2>4. <code>diff &lt;baseline_log&gt; &lt;target_log&gt;</code> (Comparative Analysis)</h2>
-    <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments:</p>
-    <pre>caddy-analyze diff baseline.log current.log</pre>
+    <h3>Performance & Network Filters</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Flag</th>
+                <th>Short</th>
+                <th>Default</th>
+                <th>Description & Usage Example</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>--slow</code></td>
+                <td>-</td>
+                <td><code>""</code></td>
+                <td>Filter requests taking longer than specified duration threshold. <code>caddy-analyze --slow 500ms</code> or <code>--slow 1.5s</code></td>
+            </tr>
+            <tr>
+                <td><code>--ip</code></td>
+                <td>-</td>
+                <td><code>""</code></td>
+                <td>Filter requests originating from a specific client IP address or CIDR subnet. <code>caddy-analyze --ip 192.168.1.50</code></td>
+            </tr>
+            <tr>
+                <td><code>--exclude-ip</code></td>
+                <td>-</td>
+                <td><code>""</code></td>
+                <td>Exclude requests originating from an IP address or CIDR subnet. <code>caddy-analyze --exclude-ip 127.0.0.1</code></td>
+            </tr>
+            <tr>
+                <td><code>--no-bots</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Exclude search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated bots. <code>caddy-analyze --no-bots</code></td>
+            </tr>
+            <tr>
+                <td><code>--bots-only</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Include ONLY search engine crawlers and automated bots. <code>caddy-analyze --bots-only</code></td>
+            </tr>
+            <tr>
+                <td><code>--grep</code></td>
+                <td><code>-g</code></td>
+                <td><code>""</code></td>
+                <td>Filter entries containing string pattern in URI path, host, or User-Agent (case-insensitive). <code>caddy-analyze -g "/api/v1"</code></td>
+            </tr>
+        </tbody>
+    </table>
 
-    <h2>5. <code>config [show|set|reset]</code> (Persistent Configuration)</h2>
-    <p>Manages default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files:</p>
-    <pre># View active configuration and default source
-caddy-analyze config show
+    <h3>Display & Output Configuration Flags</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Flag</th>
+                <th>Short</th>
+                <th>Default</th>
+                <th>Description & Usage Example</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>--detect</code></td>
+                <td><code>-d</code></td>
+                <td><code>false</code></td>
+                <td>Enable security threat detection engine (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners). <code>caddy-analyze --detect</code></td>
+            </tr>
+            <tr>
+                <td><code>--format</code></td>
+                <td><code>-f</code></td>
+                <td><code>table</code></td>
+                <td>Set output report format: <code>table</code>, <code>json</code>, <code>csv</code>, <code>html</code>. <code>caddy-analyze -f html -o report.html</code></td>
+            </tr>
+            <tr>
+                <td><code>--output</code></td>
+                <td><code>-o</code></td>
+                <td><code>""</code></td>
+                <td>Write report output to specified file path instead of stdout. <code>caddy-analyze -o analysis.txt</code></td>
+            </tr>
+            <tr>
+                <td><code>--watch</code></td>
+                <td><code>-w</code></td>
+                <td><code>false</code></td>
+                <td>Launch 6-tab interactive full-screen terminal TUI dashboard (Bubbletea). <code>caddy-analyze --watch</code></td>
+            </tr>
+            <tr>
+                <td><code>--top</code></td>
+                <td><code>-t</code></td>
+                <td><code>10</code></td>
+                <td>Set maximum number of top entries displayed in tables. <code>caddy-analyze -t 25</code></td>
+            </tr>
+            <tr>
+                <td><code>--interval</code></td>
+                <td><code>-i</code></td>
+                <td><code>""</code></td>
+                <td>Periodically re-run analysis every N duration (e.g. <code>10s</code>, <code>1m</code>). <code>caddy-analyze -i 10s</code></td>
+            </tr>
+            <tr>
+                <td><code>--follow</code></td>
+                <td><code>-F</code></td>
+                <td><code>false</code></td>
+                <td>Stream and process incoming log lines in real-time follow mode (like <code>tail -f</code>). <code>caddy-analyze -F</code></td>
+            </tr>
+        </tbody>
+    </table>
 
-# Set local default log source
-caddy-analyze config /var/log/caddy/access.log
+    <h2>2. Subcommands Specification</h2>
 
-# Set global default log source
-caddy-analyze config docker://my-caddy --global
+    <h3><code>caddy-analyze [source]</code></h3>
+    <p>Runs standard batch analysis over the log source, generating a terminal summary report with visual bar graphs, status distribution, latency percentiles (p50, p90, p95, p99), bandwidth metrics, and top client IPs/paths.</p>
 
-# Reset / remove configuration file
-caddy-analyze config reset</pre>
+    <h3><code>tail [source]</code></h3>
+    <p>Streams and colorizes access log entries into clean terminal output with status badges, method, latency, payload size, client IP, and User-Agent classification.</p>
 
-    <h2>6. <code>guard</code> & <code>block</code> / <code>unban</code> (Firewall Management)</h2>
-    <p>Monitors streaming logs and automatically adds offending IP addresses to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded:</p>
-    <pre># Start automated firewall guard daemon (requires sudo)
-sudo caddy-analyze guard --limit 50 --window 1m docker://my-caddy
+    <h3><code>top [dimension] [source]</code></h3>
+    <p>Inspects top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>method</code>, <code>host</code>, <code>bandwidth</code>). Supports <code>-b, --by &lt;dim&gt;</code> flag.</p>
 
-# Manually block specific IP addresses
-sudo caddy-analyze block 1.2.3.4 5.6.7.8
+    <h3><code>diff &lt;log1&gt; &lt;log2&gt;</code></h3>
+    <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments.</p>
 
-# Remove IP block from iptables
-sudo caddy-analyze unban 1.2.3.4</pre>
+    <h3><code>config [show|set|reset]</code></h3>
+    <p>Manages persistent default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files.</p>
+
+    <h3><code>guard [source]</code> & <code>block</code> / <code>unban</code></h3>
+    <p>Monitors streaming logs and automatically adds offending IP addresses to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded (<code>--limit 50 --window 1m</code>).</p>
 
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
