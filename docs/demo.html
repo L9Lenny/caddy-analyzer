@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caddy Log Analysis Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --purple: #c084fc;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 2rem; }
+        header { margin-bottom: 2rem; }
+        h1 { font-size: 1.8rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 0.75rem; }
+        h1 span { font-size: 0.9rem; font-weight: 400; padding: 0.25rem 0.6rem; background: var(--border); border-radius: 999px; color: var(--accent); }
+        .meta { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
+        
+        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+        .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; margin-top: 0.3rem; color: var(--accent); }
+        .stat-card.danger .stat-value { color: var(--danger); }
+        .stat-card.success .stat-value { color: var(--success); }
+        
+        .grid-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; }
+        .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; color: var(--text); }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+        td.count { text-align: right; font-weight: 600; font-family: monospace; color: var(--accent); }
+        td.bar-cell { width: 30%; }
+
+        .progress-bar { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; width: 100%; }
+        .progress-fill { background: var(--accent); height: 100%; border-radius: 4px; }
+        .progress-fill.danger { background: var(--danger); }
+        .progress-fill.success { background: var(--success); }
+        .progress-fill.warning { background: var(--warning); }
+        
+        .alert-item { background: rgba(248, 113, 113, 0.1); border-left: 4px solid var(--danger); padding: 0.75rem; border-radius: 0.25rem; margin-bottom: 0.5rem; font-size: 0.9rem; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⚡ Caddy Log Analysis Dashboard <span>Caddy v2</span></h1>
+        <div class="meta">Period: 2026-07-27T12:33:38+02:00 — 2026-07-27T14:57:24+02:00 (2h23m45.646476508s)</div>
+    </header>
+
+    <div class="grid-stats">
+        <div class="stat-card">
+            <div class="stat-label">Total Requests</div>
+            <div class="stat-value">4</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Requests / Sec</div>
+            <div class="stat-value">0.00</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Duration</div>
+            <div class="stat-value">2.95ms</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Bandwidth</div>
+            <div class="stat-value">4.77 KB</div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-label">Error Rate (5xx)</div>
+            <div class="stat-value">0.0%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Bot Traffic</div>
+            <div class="stat-value">0.0%</div>
+        </div>
+    </div>
+
+    <div class="grid-main">
+        <!-- Top Paths -->
+        <div class="card">
+            <h2>🔥 Top Requested Paths</h2>
+            <table>
+                <thead><tr><th>Path</th><th>Count</th><th class="bar-cell">Distribution</th></tr></thead>
+                <tbody><tr><td>/favicon.svg</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr><tr><td>/</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr><tr><td>/menu</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr><tr><td>/test</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- Top IPs -->
+        <div class="card">
+            <h2>🌐 Top Client IP Addresses</h2>
+            <table>
+                <thead><tr><th>IP Address</th><th>Requests</th><th class="bar-cell">Distribution</th></tr></thead>
+                <tbody><tr><td>85.94.213.134</td><td class="count">2</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 50.0%"></div></div></td></tr><tr><td>192.168.1.254</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr><tr><td>1.2.3.4</td><td class="count">1</td><td class="bar-cell"><div class="progress-bar"><div class="progress-fill" style="width: 25.0%"></div></div></td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- Status Codes -->
+        <div class="card">
+            <h2>📊 Status Codes Breakdown</h2>
+            <table>
+                <thead><tr><th>Code Class</th><th>Requests</th><th>Ratio</th></tr></thead>
+                <tbody>
+                    <tr><td>2xx Success</td><td class="count">4</td><td>100.0%</td></tr>
+                    <tr><td>3xx Redirect</td><td class="count">0</td><td>0.0%</td></tr>
+                    <tr><td>4xx Client Error</td><td class="count">0</td><td>0.0%</td></tr>
+                    <tr><td>5xx Server Error</td><td class="count">0</td><td>0.0%</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Protocol & TLS -->
+        <div class="card">
+            <h2>🔒 Protocols & TLS Handshake</h2>
+            <table>
+                <thead><tr><th>Protocol / TLS</th><th>Requests</th></tr></thead>
+                <tbody><tr><td>Proto: HTTP/2.0</td><td class="count">3</td></tr><tr><td>Proto: HTTP/1.1</td><td class="count">1</td></tr><tr><td>TLS: TLS 1.3</td><td class="count">3</td></tr><tr><td>TLS: Plain HTTP</td><td class="count">1</td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- Security Alerts -->
+        <div class="card"><h2>🛡️ Security & Anomaly Report</h2><p style="color:var(--text-muted); font-size:0.9rem;">No suspicious activities detected.</p></div>
+    </div>
+</body>
+</html>

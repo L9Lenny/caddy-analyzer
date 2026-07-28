@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>caddy-analyzer | Fast, Visual & Intelligent Access Log Analyzer for Caddy v2</title>
+    <meta name="description" content="Zero-config CLI tool, interactive TUI dashboard, threat detector, and offline HTML report generator for Caddy v2 access logs.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: #111827;
+            --card-bg: #1f293d;
+            --border: #374151;
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border);
+            background: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .btn-github {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: #fff !important;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .btn-github:hover {
+            border-color: var(--primary);
+            background: var(--card-bg);
+        }
+
+        .hero {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 1.5rem 3rem 1.5rem;
+            text-align: center;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--primary);
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 1.25rem;
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 750px;
+            margin: 0 auto 2.5rem auto;
+        }
+
+        .install-box {
+            max-width: 700px;
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .install-header {
+            display: flex;
+            background: #192231;
+            border-bottom: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            gap: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.4rem 0.8rem;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--card-bg);
+            color: var(--primary);
+        }
+
+        .install-content {
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            background: #0d131f;
+        }
+
+        .install-cmd {
+            color: var(--success);
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .copy-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 1rem;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2.5rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 4rem;
+        }
+
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.75rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .demo-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .demo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .demo-title h2 {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        .demo-title p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .iframe-container {
+            width: 100%;
+            height: 600px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #0d1117;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .cmd-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .cmd-table th, .cmd-table td {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .cmd-table th {
+            background: #192231;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .cmd-table code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--warning);
+            background: rgba(251, 191, 36, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <a href="#" class="logo">⚡ <span>caddy-analyzer</span></a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#demo">Live Report</a>
+                <a href="#commands">Commands</a>
+                <a href="https://github.com/L9Lenny/caddy-analyzer" target="_blank" class="btn-github">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-badge">⚡ Zero-Config Caddy v2 Log Diagnostics</div>
+        <h1>The Ultimate Fast, Visual & Intelligent Access Log Analyzer</h1>
+        <p>A zero-dependency CLI tool, 6-tab interactive TUI dashboard, threat detector, and offline HTML report generator designed natively for Caddy v2 structured JSON access logs.</p>
+
+        <div class="install-box">
+            <div class="install-header">
+                <button class="tab-btn active" onclick="setTab('sh')">Linux / macOS</button>
+                <button class="tab-btn" onclick="setTab('ps')">Windows PowerShell</button>
+                <button class="tab-btn" onclick="setTab('go')">go install</button>
+                <button class="tab-btn" onclick="setTab('docker')">Docker</button>
+            </div>
+            <div class="install-content">
+                <div id="cmd-text" class="install-cmd">curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</div>
+                <button class="copy-btn" onclick="copyCmd()">Copy</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <section id="features">
+            <h2 class="section-title">✨ Key Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Native Caddy JSON Parsing</h3>
+                    <p>Parses Caddy v2 structured log schema out-of-the-box including nested TLS, headers, bytes, and float durations without regex configuration.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Visual Terminal Bar Graphs</h3>
+                    <p>Displays Unicode proportion bars (<code>████████░░</code>) and Lipgloss status badges directly in your terminal output.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Built-in Threat Detector</h3>
+                    <p>Scans for SQL Injection, XSS, Path Traversal, Log4j/JNDI, RCE, sensitive file probes (<code>.env</code>, <code>.git</code>), and automated scanners.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚫</div>
+                    <h3>Real-time Firewall Guard</h3>
+                    <p>Monitors streaming logs and automatically blocks offending malicious IPs in real time via <code>iptables</code> thresholds.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Comparative Log Diff</h3>
+                    <p>Compare two log files side-by-side (before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🐳</div>
+                    <h3>Multi-Source Streaming</h3>
+                    <p>Stream directly from local files, stdin pipe, Docker containers (<code>docker://caddy</code>), K8s pods (<code>k8s://pod</code>), or systemd journal.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="demo" class="demo-section">
+            <div class="demo-header">
+                <div class="demo-title">
+                    <h2>🌐 Interactive HTML Report Live Preview</h2>
+                    <p>Generated standalone offline report (<code>caddy-analyze -f html -o report.html</code>)</p>
+                </div>
+            </div>
+            <div class="iframe-container">
+                <iframe src="demo.html" title="caddy-analyzer report demo"></iframe>
+            </div>
+        </section>
+
+        <section id="commands">
+            <h2 class="section-title">📖 Subcommands & CLI Reference</h2>
+            <table class="cmd-table">
+                <thead>
+                    <tr>
+                        <th>Subcommand</th>
+                        <th>Example</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>caddy-analyze</code></td>
+                        <td><code>caddy-analyze /var/log/caddy/access.log</code></td>
+                        <td>Run instant terminal analysis report with Unicode bar graphs</td>
+                    </tr>
+                    <tr>
+                        <td><code>tail</code></td>
+                        <td><code>caddy-analyze tail docker://my-caddy</code></td>
+                        <td>Stream and colorize Caddy access logs in real time</td>
+                    </tr>
+                    <tr>
+                        <td><code>top</code></td>
+                        <td><code>caddy-analyze top path access.log</code></td>
+                        <td>Quick top-N metric inspector (path, ip, ua, status, bandwidth)</td>
+                    </tr>
+                    <tr>
+                        <td><code>diff</code></td>
+                        <td><code>caddy-analyze diff base.log curr.log</code></td>
+                        <td>Compare two log files for RPS shifts, 5xx spikes & latency changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>guard</code></td>
+                        <td><code>caddy-analyze guard --limit 100</code></td>
+                        <td>Auto-block malicious IPs in real time via iptables</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <footer>
+        <p>© 2026 caddy-analyzer | Distributed under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+    </footer>
+
+    <script>
+        const tabCmds = {
+            sh: "curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh",
+            ps: "iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex",
+            go: "go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest",
+            docker: "docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log"
+        };
+
+        function setTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('cmd-text').innerText = tabCmds[tab];
+        }
+
+        function copyCmd() {
+            const text = document.getElementById('cmd-text').innerText;
+            navigator.clipboard.writeText(text);
+            const btn = document.querySelector('.copy-btn');
+            btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = "Copy", 2000);
+        }
+    </script>
+</body>
+</html>
