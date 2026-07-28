@@ -54,9 +54,35 @@ func (e *Engine) Process(entry *types.LogEntry) {
 	s.RemoteAddrCounts[entry.RemoteAddr]++
 	s.UserAgentCounts[entry.UserAgent]++
 	s.TotalBytes += entry.Size
+	s.PathBytesMap[entry.Path()] += entry.Size
+
+	if entry.Proto != "" {
+		s.ProtoCounts[entry.Proto]++
+	}
+	if entry.TLSVersion != "" {
+		s.TLSVersionCounts[entry.TLSVersion]++
+	} else {
+		s.TLSVersionCounts["Plain HTTP"]++
+	}
+
+	if entry.IsBot {
+		s.BotRequests++
+		botName := entry.BotName
+		if botName == "" {
+			botName = "Unknown Bot"
+		}
+		s.BotCounts[botName]++
+	} else {
+		s.HumanRequests++
+	}
+
+	if entry.RefererDomain != "" {
+		s.RefererCounts[entry.RefererDomain]++
+	}
 
 	if entry.RemoteIP != "" {
 		s.RemoteIPCounts[entry.RemoteIP]++
+		s.IPBytesMap[entry.RemoteIP] += entry.Size
 	}
 
 	if entry.Status >= 500 {
@@ -186,11 +212,103 @@ func (e *Engine) match(entry *types.LogEntry) bool {
 	if f.MaxSize > 0 && entry.Size > f.MaxSize {
 		return false
 	}
-	if f.RemoteIP != "" && entry.RemoteIP != f.RemoteIP {
+	if f.Only2xx && (entry.Status < 200 || entry.Status >= 300) {
 		return false
+	}
+	if f.Only3xx && (entry.Status < 300 || entry.Status >= 400) {
+		return false
+	}
+	if f.Only4xx && (entry.Status < 400 || entry.Status >= 500) {
+		return false
+	}
+	if f.Only5xx && entry.Status < 500 {
+		return false
+	}
+	if f.ErrorsOnly && entry.Status < 500 {
+		return false
+	}
+	if f.NoBots && entry.IsBot {
+		return false
+	}
+	if f.BotsOnly && !entry.IsBot {
+		return false
+	}
+	if f.ExcludeIP != "" && entry.RemoteIP == f.ExcludeIP {
+		return false
+	}
+	if f.GrepPattern != "" {
+		pat := strings.ToLower(f.GrepPattern)
+		target := strings.ToLower(entry.URI + " " + entry.UserAgent + " " + entry.RemoteIP + " " + entry.Host)
+		if !strings.Contains(target, pat) {
+			return false
+		}
 	}
 
 	return true
+}
+
+type DiffResult struct {
+	BaseRequests    int64
+	CurrRequests    int64
+	RequestsDelta   int64
+	RequestsPct     float64
+	BaseRPS         float64
+	CurrRPS         float64
+	RPSDelta        float64
+	BaseErrors      int64
+	CurrErrors      int64
+	ErrorsDelta     int64
+	BaseAvgDuration float64
+	CurrAvgDuration float64
+	AvgDurDelta     float64
+	NewErrorPaths   []string
+}
+
+func CompareStats(baseEngine, currEngine *Engine) DiffResult {
+	b := baseEngine.Stats()
+	c := currEngine.Stats()
+
+	bReq := b.TotalRequests
+	cReq := c.TotalRequests
+	reqDelta := cReq - bReq
+	reqPct := float64(0)
+	if bReq > 0 {
+		reqPct = float64(reqDelta) / float64(bReq) * 100
+	}
+
+	bRPS := baseEngine.RPS()
+	cRPS := currEngine.RPS()
+	bAvgDur := baseEngine.AvgDuration()
+	cAvgDur := currEngine.AvgDuration()
+
+	var newErrPaths []string
+	for path, count := range c.PathCounts {
+		if count > 0 {
+			if _, exists := b.PathCounts[path]; !exists {
+				newErrPaths = append(newErrPaths, path)
+			}
+		}
+	}
+	if len(newErrPaths) > 10 {
+		newErrPaths = newErrPaths[:10]
+	}
+
+	return DiffResult{
+		BaseRequests:    bReq,
+		CurrRequests:    cReq,
+		RequestsDelta:   reqDelta,
+		RequestsPct:     reqPct,
+		BaseRPS:         bRPS,
+		CurrRPS:         cRPS,
+		RPSDelta:        cRPS - bRPS,
+		BaseErrors:      b.Errors,
+		CurrErrors:      c.Errors,
+		ErrorsDelta:     c.Errors - b.Errors,
+		BaseAvgDuration: bAvgDur,
+		CurrAvgDuration: cAvgDur,
+		AvgDurDelta:     cAvgDur - bAvgDur,
+		NewErrorPaths:   newErrPaths,
+	}
 }
 
 func matchGlob(pattern, s string) bool {

@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -16,6 +17,10 @@ const (
 	DetXSS           DetectionType = "xss"
 	DetBruteForce    DetectionType = "brute_force"
 	DetCredScan      DetectionType = "credential_scanning"
+	DetRCE           DetectionType = "rce"
+	DetSensitiveFile DetectionType = "sensitive_file_probe"
+	DetLog4j         DetectionType = "log4j_jndi"
+	DetAdminProbe    DetectionType = "admin_probe"
 )
 
 type Detection struct {
@@ -67,9 +72,13 @@ func compilePatterns() []struct {
 		}{regexp.MustCompile(pattern), dtype, desc})
 	}
 
+	add(`(?i)(\${jndi:|class\.module\.classLoader)`, DetLog4j, "Log4j / JNDI injection attempt")
+	add(`(?i)(/bin/sh|/bin/bash|powershell|cmd\.exe|whoami|cat\s+|wget\s+|curl\s+|eval\(base64)`, DetRCE, "Remote Code Execution (RCE) attempt")
 	add(`(?i)(\bUNION\b.*\bSELECT\b|SELECT\b.*\bFROM\b|OR\s+1\s*=\s*1|'.*--|\bDROP\b.*\bTABLE|information_schema|pg_sleep|exec\s*\(.*xp_)`, DetSQLInjection, "SQL injection attempt")
 	add(`(?i)(%00|\.\./|\.\.%2f|%2e%2e%2f|/etc/passwd|/proc/self|/windows/win\.ini|php://filter|file:///|expect://)`, DetPathTraversal, "Path traversal / LFI attempt")
 	add(`(?i)(<script|javascript:|onerror\s*=|onload\s*=|onclick\s*=|alert\s*\(|%3Cscript|%3Csvg|prompt\s*\()`, DetXSS, "XSS attempt")
+	add(`(?i)(\.env|\.git/config|wp-config\.php|id_rsa|\.aws/credentials|\.htaccess|docker-compose\.yml)`, DetSensitiveFile, "Sensitive file discovery probe")
+	add(`(?i)(/phpmyadmin|/wp-login\.php|/actuator/env|/console/|/admin/config|/solr/|/api/v1/debug)`, DetAdminProbe, "Admin interface probe")
 
 	scannerUAs := []string{
 		"sqlmap", "nikto", "dirbuster", "gobuster", "wfuzz", "nmap",
@@ -86,6 +95,9 @@ func compilePatterns() []struct {
 
 func (d *Detector) Detect(entry *types.LogEntry) *Detection {
 	uri := entry.URI
+	if unescaped, err := url.QueryUnescape(uri); err == nil {
+		uri = unescaped
+	}
 	ua := entry.UserAgent
 
 	stats := d.ipStats[entry.RemoteIP]
@@ -107,7 +119,7 @@ func (d *Detector) Detect(entry *types.LogEntry) *Detection {
 			return &Detection{
 				Type:   p.dtype,
 				IP:     entry.RemoteIP,
-				URI:    uri,
+				URI:    entry.URI,
 				Status: entry.Status,
 				Desc:   p.desc,
 			}
