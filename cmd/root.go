@@ -23,19 +23,31 @@ import (
 )
 
 var (
-	flagFrom     string
-	flagTo       string
-	flagStatus   []string
-	flagMethod   string
-	flagPath     string
-	flagTop      int
-	flagFormat   string
-	flagFollow   bool
-	flagK8sNS    string
-	flagInterval string
-	flagWatch    bool
-	flagDetect   bool
-	flagOutput   string
+	flagFrom      string
+	flagTo        string
+	flagStatus    []string
+	flagMethod    string
+	flagPath      string
+	flagTop       int
+	flagFormat    string
+	flagFollow    bool
+	flagK8sNS     string
+	flagInterval  string
+	flagWatch     bool
+	flagDetect    bool
+	flagOutput    string
+	flag2xx       bool
+	flag3xx       bool
+	flag4xx       bool
+	flag5xx       bool
+	flagErrors    bool
+	flagSlow      string
+	flagIP        string
+	flagExcludeIP string
+	flagNoBots    bool
+	flagBotsOnly  bool
+	flagGrep      string
+	flagCompact   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -51,23 +63,23 @@ Sources:
   k8s://pod              Kubernetes pod  (-n namespace)
   journalctl://unit      systemd unit
 
+Subcommands:
+  tail [source...]       Colorized real-time log viewer
+  top <dimension>        Quick top-N metric inspector (path, ip, ua, status, bandwidth)
+  diff <log1> <log2>     Compare two log files for RPS shifts, 5xx spikes, and latency changes
+
 Config (auto-detected):
   ./caddy-analyzer.json        Local config
   ~/.config/caddy-analyzer/config.json  Global config
-  Format: { "source": "/var/log/caddy/access.log" }
-
-Detection (--detect):
-  SQL injection, XSS, path traversal, scanner tools,
-  brute force (401/403 surge), directory scanning (404 surge)
 
 Examples:
   caddy-analyze /var/log/caddy/access.log
   caddy-analyze --detect /var/log/caddy/access.log
-  caddy-analyze -o report.json -f json /var/log/caddy/access.log
-  docker logs my-caddy | caddy-analyze -
-  caddy-analyze docker://my-caddy --watch
-  caddy-analyze guard docker://my-caddy --limit 100
-  caddy-analyze config /var/log/caddy/access.log
+  caddy-analyze --slow 500ms /var/log/caddy/access.log
+  caddy-analyze --5xx --no-bots /var/log/caddy/access.log
+  caddy-analyze tail docker://my-caddy
+  caddy-analyze top path /var/log/caddy/access.log
+  caddy-analyze diff base.log current.log
 `,
 	RunE: runAnalysis,
 }
@@ -87,16 +99,28 @@ func init() {
 	flags.StringVarP(&flagMethod, "method", "m", "", "Filter by HTTP method")
 	flags.StringVarP(&flagPath, "path", "p", "", "Filter by path (glob: /api/*)")
 	flags.IntVarP(&flagTop, "top", "t", 10, "Show top N (0 to disable)")
-	flags.StringVarP(&flagFormat, "format", "f", "table", "Output format: table, json, csv")
+	flags.StringVarP(&flagFormat, "format", "f", "table", "Output format: table, json, csv, html")
 	flags.BoolVarP(&flagFollow, "follow", "F", false, "Follow new logs in real time")
 	flags.StringVarP(&flagK8sNS, "namespace", "n", "", "Kubernetes namespace")
 	flags.StringVarP(&flagInterval, "interval", "i", "", "Aggregation interval (e.g. 5m, 1h)")
 	flags.BoolVarP(&flagWatch, "watch", "w", false, "Live dashboard (RPS, top IP, status)")
 	flags.BoolVarP(&flagDetect, "detect", "d", false, "Detect suspicious activity (SQLi, XSS, scanners, etc.)")
 	flags.StringVarP(&flagOutput, "output", "o", "", "Write report to file instead of stdout")
+	flags.BoolVarP(&flag2xx, "2xx", "", false, "Filter 2xx status codes")
+	flags.BoolVarP(&flag3xx, "3xx", "", false, "Filter 3xx status codes")
+	flags.BoolVarP(&flag4xx, "4xx", "", false, "Filter 4xx status codes")
+	flags.BoolVarP(&flag5xx, "5xx", "", false, "Filter 5xx status codes")
+	flags.BoolVarP(&flagErrors, "errors-only", "e", false, "Filter 5xx server errors only")
+	flags.StringVarP(&flagSlow, "slow", "", "", "Filter requests slower than duration (e.g. 500ms, 1s)")
+	flags.StringVarP(&flagIP, "ip", "", "", "Filter by Remote IP")
+	flags.StringVarP(&flagExcludeIP, "exclude-ip", "", "", "Exclude Remote IP")
+	flags.BoolVarP(&flagNoBots, "no-bots", "", false, "Exclude automated bot and crawler traffic")
+	flags.BoolVarP(&flagBotsOnly, "bots-only", "", false, "Include only automated bot traffic")
+	flags.StringVarP(&flagGrep, "grep", "g", "", "Search pattern across URI, User-Agent, Remote IP")
+	flags.BoolVarP(&flagCompact, "compact", "c", false, "Compact output mode")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
-	rootCmd.Version = "0.1.0"
+	rootCmd.Version = "0.2.0"
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	addHiddenCompletionCmd()
 }
@@ -321,6 +345,26 @@ func resolveSources(args []string) []types.LogSource {
 		fmt.Fprintf(os.Stderr, "using config: %s\n", cfgPath)
 		return []types.LogSource{reader.ParseSource(cfg.Source)}
 	}
+
+	fi, err := os.Stdin.Stat()
+	if err == nil && (fi.Mode()&os.ModeCharDevice) == 0 {
+		return []types.LogSource{{Type: types.SourceStdin}}
+	}
+
+	candidates := []string{
+		"access.log",
+		"caddy.log",
+		"caddy-access.log",
+		"/var/log/caddy/access.log",
+		"/var/log/caddy/caddy.log",
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			fmt.Fprintf(os.Stderr, "auto-detected log file: %s\n", candidate)
+			return []types.LogSource{{Type: types.SourceFile, Path: candidate}}
+		}
+	}
+
 	return []types.LogSource{{Type: types.SourceStdin}}
 }
 
@@ -365,6 +409,26 @@ func buildFilters() (types.Filters, error) {
 	}
 	f.Method = flagMethod
 	f.PathGlob = flagPath
+	f.Only2xx = flag2xx
+	f.Only3xx = flag3xx
+	f.Only4xx = flag4xx
+	f.Only5xx = flag5xx
+	f.ErrorsOnly = flagErrors
+	f.NoBots = flagNoBots
+	f.BotsOnly = flagBotsOnly
+	f.RemoteIP = flagIP
+	f.ExcludeIP = flagExcludeIP
+	f.GrepPattern = flagGrep
+	f.Compact = flagCompact
+
+	if flagSlow != "" {
+		dur, err := time.ParseDuration(flagSlow)
+		if err != nil {
+			return f, fmt.Errorf("invalid --slow duration: %w", err)
+		}
+		f.MinLatency = dur.Seconds()
+	}
+
 	return f, nil
 }
 
