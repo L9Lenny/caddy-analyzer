@@ -9,7 +9,7 @@ if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { $Arch = "arm64" }
 
 $LatestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
 $Tag = $LatestRelease.tag_name
-if (-not $Tag) { $Tag = "v0.2.0" }
+if (-not $Tag) { $Tag = "v0.1.0" }
 
 $VersionNum = $Tag.TrimStart('v')
 $Url = "https://github.com/$Repo/releases/download/$Tag/caddy-analyze_${VersionNum}_windows_${Arch}.zip"

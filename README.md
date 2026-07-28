@@ -15,7 +15,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/L9Lenny/caddy-analyzer)](https://goreportcard.com/report/github.com/L9Lenny/caddy-analyzer)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/L9Lenny/caddy-analyzer/ci.yml?branch=main&style=flat-square&label=CI&color=4ade80)](https://github.com/L9Lenny/caddy-analyzer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.0-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
+[![Version](https://img.shields.io/badge/version-v0.1.0-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
 
 ---
 

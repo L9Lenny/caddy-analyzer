@@ -44,7 +44,7 @@ esac
 
 TAG=$(curl -sSfL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 if [ -z "$TAG" ]; then
-    TAG="v0.2.0"
+    TAG="v0.1.0"
 fi
 
 URL="https://github.com/$REPO/releases/download/$TAG/caddy-analyze_${TAG#v}_${OS}_${ARCH}.tar.gz"
