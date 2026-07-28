@@ -189,21 +189,37 @@ func (r *Report) printTable() {
 		fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
 	}
 
-	if r.detect && len(s.SuspiciousIPs) > 0 {
-		susLabel := "🚨 Suspicious Activity Detected"
+	if r.detect {
+		secHeader := "🛡️ SECURITY THREAT INSPECTION [DETECTOR ACTIVE]"
 		if useColor {
-			susLabel = styleError.Render("🚨 Suspicious Activity Detected")
+			secHeader = styleHeader.Render(secHeader)
 		}
-		fmt.Fprintf(w, "%s:\n", susLabel)
-		items := analysis.TopN(s.SuspiciousIPs, 20)
-		for _, item := range items {
-			line := fmt.Sprintf("  ⚠ %-15s %d suspicious requests", item.Key, item.Count)
+		fmt.Fprintf(w, "%s\n", secHeader)
+
+		if len(s.SuspiciousIPs) > 0 {
+			alertLabel := fmt.Sprintf("🚨 THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
 			if useColor {
-				line = styleSuspect.Render(line)
+				alertLabel = styleError.Render(alertLabel)
 			}
-			fmt.Fprintf(w, "%s\n", line)
+			fmt.Fprintf(w, "  %s\n", alertLabel)
+
+			fmt.Fprintf(w, "  Top Offending IPs:\n")
+			items := analysis.TopN(s.SuspiciousIPs, 10)
+			for _, item := range items {
+				ipLine := fmt.Sprintf("    ⚠ %-18s %d malicious requests", item.Key, item.Count)
+				if useColor {
+					ipLine = styleError.Render(ipLine)
+				}
+				fmt.Fprintf(w, "%s\n", ipLine)
+			}
+			fmt.Fprintf(w, "  💡 Hint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n\n")
+		} else {
+			cleanMsg := fmt.Sprintf("  ✔ STATUS: CLEAN (0 security threats or scanner probes detected across %d requests)", total)
+			if useColor {
+				cleanMsg = styleOK.Render(cleanMsg)
+			}
+			fmt.Fprintf(w, "%s\n\n", cleanMsg)
 		}
-		fmt.Fprintf(w, "\n")
 	}
 
 	if r.top > 0 {

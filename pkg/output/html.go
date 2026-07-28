@@ -334,14 +334,17 @@ func renderMixedRows(protos, tls []types.CountItem) string {
 }
 
 func renderSecurityAlertsHTML(suspicious []types.CountItem, detect bool) string {
-	if !detect || len(suspicious) == 0 {
-		return `<div class="card"><h2>Security & Anomaly Report</h2><p style="color:#888888; font-size:0.85rem; font-family:monospace;">No suspicious activities detected.</p></div>`
+	if !detect {
+		return ""
+	}
+	if len(suspicious) == 0 {
+		return `<div class="card"><h2>🛡️ Security Threat Inspection</h2><div style="color:#3fb950; font-weight:600; font-size:0.9rem; font-family:monospace; padding:0.5rem 0;">✔ STATUS: CLEAN — 0 security threats or scanner probes detected</div></div>`
 	}
 	var alerts string
 	for _, item := range suspicious {
-		alerts += fmt.Sprintf(`<div class="alert-item">IP: %s — %d suspicious requests triggered</div>`, escapeHTML(item.Key), item.Count)
+		alerts += fmt.Sprintf(`<div class="alert-item">⚠ IP: %s — %d malicious requests triggered</div>`, escapeHTML(item.Key), item.Count)
 	}
-	return fmt.Sprintf(`<div class="card"><h2>Security & Anomaly Alerts</h2>%s</div>`, alerts)
+	return fmt.Sprintf(`<div class="card" style="border-left: 3px solid #f85149;"><h2>🚨 Security & Threat Alerts (%d Suspicious IPs)</h2>%s<p style="color:#888888; font-size:0.8rem; margin-top:0.75rem; font-family:monospace;">💡 Action Hint: Run 'sudo caddy-analyze guard' to auto-block attack IPs via iptables.</p></div>`, len(suspicious), alerts)
 }
 
 func escapeHTML(s string) string {
