@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subcommands Guide — caddy-analyzer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #111;
+            color: #d1d5db;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        h1, h2, h3 { color: #fff; font-weight: 600; }
+        h1 { font-size: 1.8rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #9ca3af; font-size: 1.05rem; margin-bottom: 2rem; }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        nav.doc-nav {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #222;
+            padding-bottom: 1rem;
+        }
+
+        nav.doc-nav a {
+            background: #181818;
+            border: 1px solid #282828;
+            color: #d1d5db;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        nav.doc-nav a:hover, nav.doc-nav a.active {
+            border-color: #60a5fa;
+            color: #fff;
+            background: #222;
+        }
+
+        pre, code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.88em;
+        }
+
+        pre {
+            background: #181818;
+            border: 1px solid #282828;
+            border-radius: 4px;
+            padding: 1rem;
+            overflow-x: auto;
+            color: #e5e7eb;
+            margin: 1rem 0 1.5rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+        ul { margin: 0 0 1.5rem 1.5rem; }
+        li { margin-bottom: 0.4rem; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0 2rem 0;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid #282828;
+        }
+
+        th { color: #fff; border-bottom: 2px solid #333; }
+
+        .footer {
+            margin-top: 4rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #222;
+            color: #6b7280;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Subcommands Reference</h1>
+    <div class="subtitle">Detailed guide for caddy-analyzer CLI subcommands</div>
+
+    <nav class="doc-nav">
+        <a href="index.html">Overview</a>
+        <a href="installation.html">Installation</a>
+        <a href="sources.html">Log Sources</a>
+        <a href="subcommands.html" class="active">Subcommands</a>
+        <a href="security.html">Threat Detector</a>
+        <a href="tui-html.html">TUI & HTML Reports</a>
+    </nav>
+
+    <h2>1. <code>tail</code> (Real-Time Colorized Viewer)</h2>
+    <p>Streams and colorizes Caddy access log entries into clean terminal lines formatted with status badges, method, latency, payload size, IP, and User-Agent classification:</p>
+    <pre># Tail local log file
+caddy-analyze tail /var/log/caddy/access.log
+
+# Tail live Docker logs
+caddy-analyze tail docker://my-caddy</pre>
+
+    <h2>2. <code>top</code> (Quick Metric Inspector)</h2>
+    <p>Provides targeted rankings for specific log dimensions without printing a full report:</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Dimension</th>
+                <th>Description</th>
+                <th>Example</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>path</code></td>
+                <td>Top requested HTTP URIs / endpoints (default)</td>
+                <td><code>caddy-analyze top /var/log/caddy/access.log</code></td>
+            </tr>
+            <tr>
+                <td><code>ip</code></td>
+                <td>Top client IP addresses (useful for scrapers & DoS)</td>
+                <td><code>caddy-analyze top ip /var/log/caddy/access.log</code></td>
+            </tr>
+            <tr>
+                <td><code>ua</code></td>
+                <td>Top User-Agent strings</td>
+                <td><code>caddy-analyze top ua /var/log/caddy/access.log</code></td>
+            </tr>
+            <tr>
+                <td><code>status</code></td>
+                <td>Top HTTP response status codes</td>
+                <td><code>caddy-analyze top /var/log/caddy/access.log -b status</code></td>
+            </tr>
+            <tr>
+                <td><code>bandwidth</code></td>
+                <td>Top paths sorted by total byte bandwidth</td>
+                <td><code>caddy-analyze top bandwidth access.log -t 20</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>3. <code>diff</code> (Comparative Analysis)</h2>
+    <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments:</p>
+    <pre># Compare baseline log vs target log
+caddy-analyze diff baseline.log current.log</pre>
+
+    <h2>4. <code>config</code> (Persistent Configuration)</h2>
+    <p>Manages default log source settings in local or global JSON config files:</p>
+    <pre># View active configuration and source
+caddy-analyze config show
+
+# Set local default log source (./caddy-analyzer.json)
+caddy-analyze config /var/log/caddy/access.log
+
+# Set global default log source (~/.config/caddy-analyzer/config.json)
+caddy-analyze config docker://my-caddy --global
+
+# Reset / remove configuration file
+caddy-analyze config reset</pre>
+
+    <h2>5. <code>guard</code> & <code>block</code> / <code>unban</code></h2>
+    <p>Monitors streaming logs and automatically blocks offending IP addresses exceeding threshold limits in real time via <code>iptables</code> rules (requires sudo):</p>
+    <pre># Start automated firewall guard daemon
+sudo caddy-analyze guard --limit 100 docker://my-caddy
+
+# Manually block specific IP addresses
+sudo caddy-analyze block 1.2.3.4 5.6.7.8
+
+# Remove IP block from iptables
+sudo caddy-analyze unban 1.2.3.4</pre>
+
+    <div class="footer">
+        <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
+    </div>
+
+</body>
+</html>
