@@ -14,20 +14,52 @@ import (
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
+var flagTopBy string
+
 var topCmd = &cobra.Command{
-	Use:   "top [path|ip|ua|status|method|host|bandwidth] [source...]",
+	Use:   "top [dimension] [source...]",
 	Short: "Quickly display top metrics for a specific dimension",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  runTopCmd,
+	Long: `Quickly display top metrics by dimension (default: path).
+
+Dimensions:
+  path        Top requested HTTP paths (default)
+  ip          Top client IP addresses
+  ua          Top User-Agent strings
+  status      Top HTTP status codes
+  method      Top HTTP methods
+  host        Top request hosts
+  bandwidth   Top paths by total byte bandwidth
+
+Examples:
+  caddy-analyze top /var/log/caddy/access.log
+  caddy-analyze top ip /var/log/caddy/access.log
+  caddy-analyze top /var/log/caddy/access.log --by status
+  caddy-analyze top bandwidth docker://my-caddy
+`,
+	Args: cobra.ArbitraryArgs,
+	RunE: runTopCmd,
 }
 
 func init() {
+	topCmd.Flags().StringVarP(&flagTopBy, "by", "b", "", "Dimension to group by (path, ip, ua, status, method, host, bandwidth)")
 	rootCmd.AddCommand(topCmd)
 }
 
 func runTopCmd(cmd *cobra.Command, args []string) error {
-	dimension := strings.ToLower(args[0])
-	sourceArgs := args[1:]
+	var dimension string
+	var sourceArgs []string
+
+	if flagTopBy != "" {
+		dimension = flagTopBy
+		sourceArgs = args
+	} else if len(args) > 0 && isSupportedDimension(args[0]) {
+		dimension = args[0]
+		sourceArgs = args[1:]
+	} else {
+		dimension = "path"
+		sourceArgs = args
+	}
+
 	sources := resolveSources(sourceArgs)
 
 	filters, err := buildFilters()
@@ -61,7 +93,7 @@ func runTopCmd(cmd *cobra.Command, args []string) error {
 		topN = 10
 	}
 
-	switch dimension {
+	switch strings.ToLower(dimension) {
 	case "path", "paths":
 		output.TopFieldAnalysis(engine, types.TopPath, topN)
 	case "ip", "ips":
@@ -81,8 +113,16 @@ func runTopCmd(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  %d.  %-40s  (%s)\n", i+1, item.Key, output.FormatBytes(item.Count))
 		}
 	default:
-		return fmt.Errorf("unknown top field: %s (supported: path, ip, ua, status, method, host, bandwidth)", dimension)
+		return fmt.Errorf("unknown dimension: %s (supported: path, ip, ua, status, method, host, bandwidth)", dimension)
 	}
 
 	return nil
+}
+
+func isSupportedDimension(s string) bool {
+	switch strings.ToLower(s) {
+	case "path", "paths", "ip", "ips", "ua", "useragent", "user-agent", "status", "method", "methods", "host", "hosts", "bandwidth", "bytes":
+		return true
+	}
+	return false
 }
