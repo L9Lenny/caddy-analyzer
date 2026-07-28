@@ -1,152 +1,154 @@
-# caddy-analyze
+<div align="center">
 
-CLI tool for analyzing Caddy v2 access logs. Supports files, stdin, Docker,
-Kubernetes, and journalctl. Includes anomaly detection and auto-blocking.
+```
+  ██████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗    █████╗ ███╗   ██╗██╗   ██╗██╗  ██╗███████╗███████╗██████╗ 
+ ██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝   ██╔══██╗████╗  ██║██║   ██║██║  ██║╚══███╔╝██╔════╝██╔══██╗
+ ██║     ███████║██║  ██║██║  ██║ ╚████╔╝    ███████║██╔██╗ ██║██║   ██║███████║  ███╔╝ █████╗  ██████╔╝
+ ██║     ██╔══██║██║  ██║██║  ██║  ╚██╔╝     ██╔══██║██║╚██╗██║██║   ██║██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗
+ ╚██████╗██║  ██║██████╔╝██████╔╝   ██║      ██║  ██║██║ ╚████║╚██████╔╝██║  ██║███████╗███████╗██║  ██║
+  ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
+```
 
-## Installation
+### ⚡ The Ultimate Fast, Visual & Intelligent Access Log Analyzer for Caddy v2 ⚡
+
+[![Go Version](https://img.shields.io/github/goversion/lenny/caddy-analyzer?style=flat-square&color=38bdf8)](https://go.dev)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lenny/caddy-analyzer)](https://goreportcard.com/report/github.com/lenny/caddy-analyzer)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/lenny/caddy-analyzer/ci.yml?style=flat-square&label=CI&color=4ade80)](https://github.com/lenny/caddy-analyzer/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/lenny/caddy-analyzer?style=flat-square&color=fbbf24)](https://github.com/lenny/caddy-analyzer/releases)
+
+---
+
+**`caddy-analyzer`** is a ultra-fast, zero-config CLI tool, interactive TUI dashboard, threat detector, and offline HTML report generator designed natively for **Caddy v2 structured JSON access logs**.
+
+</div>
+
+---
+
+## ✨ Features
+
+- ⚡ **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex configs required).
+- 📊 **Visual Terminal Bar Charts**: Displays Unicode proportion bars (`████████░░`) and Lipgloss status badges directly in your terminal.
+- 🛡️ **Built-in Threat & Anomaly Detector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools.
+- 🚫 **Real-time Firewall Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` thresholds.
+- 🤖 **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
+- 🔍 **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side (e.g. before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.
+- 🌐 **Interactive Single-File HTML Dashboard (`-f html`)**: Generates standalone, dark-mode visual web reports containing SVG charts for sharing with team members.
+- 📺 **6-Tab Interactive TUI Dashboard (`--watch`)**: Live Bubbletea/Lipgloss dashboard featuring real-time log streaming, security alerts, and top metrics.
+- 🐳 **Multi-Source Support**: Read from files (`access.log`), stdin (`-`), Docker (`docker://caddy`), Kubernetes (`k8s://pod`), and systemd (`journalctl://caddy`).
+
+---
+
+## 📦 Installation
+
+### Via 1-Line Installer Script (Linux & macOS)
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/lenny/caddy-analyzer/main/install.sh | sh
+```
+
+### Via PowerShell (Windows)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/lenny/caddy-analyzer/main/install.ps1 | iex
+```
+
+### Via `go install`
 
 ```bash
 go install github.com/lenny/caddy-analyzer/cmd/caddy-analyze@latest
 ```
 
-Or build from source:
+### Via Docker
 
 ```bash
-git clone <repo>
-cd caddy-analyzer
-make build
+docker run --rm -v /var/log/caddy:/logs ghcr.io/lenny/caddy-analyzer /logs/access.log
 ```
 
-## Usage
+---
+
+## ⚡ Quick Start
+
+```bash
+# Auto-detect local log file or run against log file
+caddy-analyze /var/log/caddy/access.log
+
+# Run threat detection engine
+caddy-analyze --detect /var/log/caddy/access.log
+
+# Filter slow requests (> 500ms) and exlude bots
+caddy-analyze --slow 500ms --no-bots /var/log/caddy/access.log
+
+# Stream colorized logs in real time
+caddy-analyze tail docker://my-caddy
+
+# Generate interactive dark-mode HTML report
+caddy-analyze -f html -o report.html --detect /var/log/caddy/access.log
+
+# Compare logs before vs after deployment
+caddy-analyze diff baseline.log current.log
+```
+
+---
+
+## 📖 Command Reference
 
 ```
 caddy-analyze [flags] [source...]
+
+Subcommands:
+  tail [source...]                      Stream and colorize Caddy access logs in real time
+  top <dimension> [source...]           Quick top-N metric inspector (path, ip, ua, status, bandwidth)
+  diff <baseline_log> <target_log>      Compare two log files for RPS shifts, 5xx spikes, and latency changes
+  guard [source...]                     Auto-block malicious IPs in real time via iptables
+  block <ip...>                         Manually block IP address via iptables
+  unban <ip...>                         Remove IP address block from iptables
 ```
 
-### Sources
+### 🚩 Flags
 
-| Source | Example | Description |
-|--------|---------|-------------|
-| File | `caddy-analyze /var/log/caddy/access.log` | Local file, supports glob |
-| Stdin | `docker logs my-caddy \| caddy-analyze -` | Pipe from other commands |
-| Docker | `caddy-analyze docker://my-caddy` | Logs from Docker container |
-| Kubernetes | `caddy-analyze k8s://pod-name -n namespace` | Logs from K8s pod |
-| Journalctl | `caddy-analyze journalctl://caddy` | Logs from systemd unit |
-| Config | `caddy-analyze` (no args) | Uses source from config file |
+| Flag | Short | Default | Description |
+| :--- | :---: | :---: | :--- |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `html` |
+| `--detect` | `-d` | `false` | Enable threat & anomaly detection engine |
+| `--slow` | | `""` | Filter requests slower than duration (e.g. `500ms`, `1s`) |
+| `--2xx` | | `false` | Filter 2xx status codes |
+| `--3xx` | | `false` | Filter 3xx status codes |
+| `--4xx` | | `false` | Filter 4xx status codes |
+| `--5xx` | | `false` | Filter 5xx status codes |
+| `--errors-only` | `-e` | `false` | Filter 5xx server errors only |
+| `--no-bots` | | `false` | Exclude automated bot and crawler traffic |
+| `--bots-only` | | `false` | Include only automated bot traffic |
+| `--grep` | `-g` | `""` | Search pattern across URI, User-Agent, Remote IP |
+| `--top` | `-t` | `10` | Show top N entries |
+| `--watch` | `-w` | `false` | Live interactive TUI dashboard |
+| `--output` | `-o` | `""` | Write output to specified file path |
 
-### Flags
+---
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--from` | | Filter from time (RFC3339 or relative: `5m`, `1h`, `2d`) |
-| `--to` | | Filter to time (RFC3339) |
-| `-s, --status` | | Filter by status code (e.g. `-s 200,404`) |
-| `-m, --method` | | Filter by HTTP method |
-| `-p, --path` | | Filter by path (glob: `/api/*`) |
-| `-t, --top` | 10 | Show top N (0 to disable) |
-| `-f, --format` | table | Output format: `table`, `json`, `csv` |
-| `-F, --follow` | | Follow new logs in real time |
-| `-n, --namespace` | | Kubernetes namespace |
-| `-i, --interval` | | Aggregation interval (e.g. `5m`, `1h`) |
-| `-w, --watch` | | Live dashboard (RPS, top IP, status) |
-| `-d, --detect` | | Detect suspicious activity (SQLi, XSS, scanners, brute force) |
-| `-o, --output` | | Write report to file instead of stdout |
+## 🛡️ Security Detection Engine (`--detect`)
 
-### Examples
+Scans every request against a security pattern engine:
 
-```bash
-# Basic analysis
-caddy-analyze /var/log/caddy/access.log
+| Attack Category | Pattern / Vector Detected |
+| :--- | :--- |
+| **SQL Injection** | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, etc. |
+| **Path Traversal / LFI** | `../`, `%2e%2e%2f`, `/etc/passwd`, `php://filter`, `file:///`, etc. |
+| **XSS** | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, etc. |
+| **Remote Code Execution (RCE)** | `/bin/sh`, `powershell`, `whoami`, `cat /etc/`, `eval(base64`, etc. |
+| **Sensitive File Discovery** | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.aws/credentials`, etc. |
+| **Admin Interface Probe** | `/phpmyadmin`, `/actuator/env`, `/wp-login.php`, `/console/`, etc. |
+| **Scanner Tools** | `sqlmap`, `nikto`, `dirbuster`, `gobuster`, `nmap`, `burp suite`, `zap`, etc. |
 
-# Filter 5xx errors
-caddy-analyze --status 500,502,503 /var/log/caddy/access.log
+---
 
-# Only POST requests, JSON output
-caddy-analyze -m POST -f json /var/log/caddy/access.log
+## 🤝 Contributing
 
-# Detect suspicious activity
-caddy-analyze --detect /var/log/caddy/access.log
+Contributions, issues, and feature requests are welcome!
+Check out the [Contributing Guide](CONTRIBUTING.md) to get started.
 
-# Save report to file
-caddy-analyze -o report.json -f json /var/log/caddy/access.log
+---
 
-# Top 5 paths
-caddy-analyze --top 5 /var/log/caddy/access.log
+## 📄 License
 
-# Docker logs, last 30 minutes
-caddy-analyze docker://my-caddy --from 30m
-
-# Live dashboard
-caddy-analyze --watch docker://my-caddy
-
-# Follow with anomaly detection
-caddy-analyze --follow --detect /var/log/caddy/access.log
-
-# Aggregate every 5 minutes
-caddy-analyze -i 5m /var/log/caddy/access.log
-
-# Filter by path
-caddy-analyze --path '/api/*' /var/log/caddy/access.log
-```
-
-### Detection (`--detect`)
-
-Scans every request for:
-
-| Pattern | Detects |
-|---------|---------|
-| SQL injection | `UNION SELECT`, `OR 1=1`, `information_schema`, etc. |
-| Path traversal | `../`, `/etc/passwd`, `php://filter`, etc. |
-| XSS | `<script>`, `javascript:`, `onerror=`, etc. |
-| Scanner tools | sqlmap, nikto, dirbuster, gobuster, nmap, burp, etc. |
-| Auth failure surge | Many 401/403 from the same IP |
-| Not found surge | Many 404 from the same IP (directory scanning) |
-
-## Subcommands
-
-### `guard [source]`
-
-Auto-block malicious IPs in real time via iptables.
-
-```
-caddy-analyze guard /var/log/caddy/access.log --auth-limit 5
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-l, --limit` | 100 | Max requests before blocking |
-| `-w, --window` | 1m | Monitoring time window |
-| `-d, --duration` | 10m | Block duration (`0` = permanent) |
-| `--auth-limit` | 10 | Max 401/403 before blocking |
-| `--notfound-limit` | 50 | Max 404 before blocking |
-
-Blocks an IP when _any_ threshold is exceeded.
-
-### `block <ip> [ip...]`
-
-Block IP via iptables.
-
-```bash
-caddy-analyze block 10.0.0.1
-caddy-analyze block 192.168.1.1 10.0.0.2
-```
-
-### `unban <ip> [ip...]`
-
-Remove IP from iptables.
-
-```bash
-caddy-analyze unban 192.168.1.1
-caddy-analyze unban --all       # Unblock everyone
-caddy-analyze unban --list      # Show blocked IPs
-```
-
-### `config [source]`
-
-Set default log source in config file.
-
-```bash
-caddy-analyze config /var/log/caddy/access.log
-caddy-analyze config docker://my-caddy
-caddy-analyze config --global /var/log/caddy/access.log
-```
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more details.

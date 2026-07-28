@@ -1,4 +1,8 @@
 caddy-analyze
+caddy-analyze.exe
 caddy-analyzer.json
 caddy_access.log
+report.html
+sample.log
 *.sha256
+dist/
