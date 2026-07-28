@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>caddy-analyzer | Fast, Visual & Intelligent Access Log Analyzer for Caddy v2</title>
-    <meta name="description" content="Zero-config CLI tool, interactive TUI dashboard, threat detector, and offline HTML report generator for Caddy v2 access logs.">
-    <meta name="generator" content="caddy-analyzer docs">
+    <title>caddy-analyzer | Fast Caddy v2 Access Log Analyzer</title>
+    <meta name="description" content="Fast, zero-dependency CLI log analyzer and security inspector for Caddy v2 structured JSON logs.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0b0f19;
-            --surface: #111827;
-            --card-bg: #1f293d;
-            --border: #374151;
-            --primary: #38bdf8;
-            --accent: #818cf8;
-            --success: #4ade80;
-            --warning: #fbbf24;
-            --danger: #f87171;
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --heading: #f0f6fc;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --code-bg: #010409;
         }
 
         * {
@@ -31,165 +30,120 @@
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
             background-color: var(--bg);
             color: var(--text-main);
             line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
+            padding-bottom: 4rem;
         }
 
         header {
             border-bottom: 1px solid var(--border);
-            background: rgba(17, 24, 39, 0.8);
-            backdrop-filter: blur(12px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            background: var(--surface);
+            padding: 1rem 0;
         }
 
-        .nav-container {
-            max-width: 1200px;
+        .header-content {
+            max-width: 1000px;
             margin: 0 auto;
+            padding: 0 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 1.5rem;
         }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-weight: 800;
-            font-size: 1.25rem;
-            color: #fff;
+        .brand {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--heading);
             text-decoration: none;
         }
 
-        .logo span {
-            color: var(--primary);
+        .brand span {
+            color: var(--accent);
         }
 
         .nav-links {
             display: flex;
-            gap: 1.5rem;
+            gap: 1.25rem;
             align-items: center;
         }
 
         .nav-links a {
             color: var(--text-muted);
             text-decoration: none;
+            font-size: 0.9rem;
             font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.2s;
         }
 
         .nav-links a:hover {
-            color: var(--primary);
-        }
-
-        .btn-github {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: #fff !important;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: border-color 0.2s, background 0.2s;
-        }
-
-        .btn-github:hover {
-            border-color: var(--primary);
-            background: var(--card-bg);
+            color: var(--accent);
         }
 
         .hero {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 4rem 1.5rem 3rem 1.5rem;
-            text-align: center;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(56, 189, 248, 0.1);
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            color: var(--primary);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
+            max-width: 1000px;
+            margin: 3.5rem auto 2.5rem auto;
+            padding: 0 1.5rem;
         }
 
         .hero h1 {
-            font-size: 3rem;
-            font-weight: 800;
-            letter-spacing: -0.025em;
-            margin-bottom: 1.25rem;
-            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--heading);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
         }
 
         .hero p {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             color: var(--text-muted);
-            max-width: 750px;
-            margin: 0 auto 2.5rem auto;
+            max-width: 720px;
+            margin-bottom: 2rem;
         }
 
-        .install-box {
-            max-width: 700px;
-            margin: 0 auto;
+        .install-container {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            margin-bottom: 3rem;
         }
 
-        .install-header {
+        .install-tabs {
             display: flex;
-            background: #192231;
+            background: #0d1117;
             border-bottom: 1px solid var(--border);
-            padding: 0.5rem 1rem;
-            gap: 0.5rem;
         }
 
         .tab-btn {
             background: transparent;
             border: none;
             color: var(--text-muted);
-            padding: 0.4rem 0.8rem;
-            font-family: inherit;
+            padding: 0.6rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.85rem;
-            font-weight: 600;
             cursor: pointer;
-            border-radius: 6px;
-            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
         }
 
         .tab-btn.active {
-            background: var(--card-bg);
-            color: var(--primary);
+            color: var(--heading);
+            border-bottom-color: var(--accent);
+            background: var(--surface);
         }
 
-        .install-content {
-            padding: 1.25rem;
+        .install-body {
+            padding: 1rem 1.25rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.95rem;
-            background: #0d131f;
+            font-size: 0.9rem;
+            background: var(--code-bg);
         }
 
-        .install-cmd {
+        .cmd-code {
             color: var(--success);
             overflow-x: auto;
             white-space: nowrap;
@@ -199,150 +153,160 @@
             background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            padding: 0.4rem 0.75rem;
+            padding: 0.35rem 0.75rem;
             border-radius: 6px;
             cursor: pointer;
+            font-family: inherit;
             font-size: 0.8rem;
             margin-left: 1rem;
-            transition: all 0.2s;
         }
 
         .copy-btn:hover {
-            color: #fff;
-            border-color: var(--primary);
+            color: var(--heading);
+            border-color: var(--text-muted);
         }
 
-        .container {
-            max-width: 1200px;
+        .main-content {
+            max-width: 1000px;
             margin: 0 auto;
-            padding: 3rem 1.5rem;
+            padding: 0 1.5rem;
         }
 
-        .section-title {
-            text-align: center;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 2.5rem;
+        .terminal-window {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #c9d1d9;
+            overflow-x: auto;
+            margin-bottom: 3rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
 
-        .features-grid {
+        .term-title {
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            font-size: 0.8rem;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .grid-2 {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: 1fr 1fr;
             gap: 1.5rem;
-            margin-bottom: 4rem;
+            margin-bottom: 3rem;
         }
 
-        .feature-card {
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.75rem;
-            transition: transform 0.2s, border-color 0.2s;
+            border-radius: 8px;
+            padding: 1.5rem;
         }
 
-        .feature-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(56, 189, 248, 0.4);
-        }
-
-        .feature-icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.25rem;
+        .card h3 {
+            font-size: 1.1rem;
+            color: var(--heading);
             margin-bottom: 0.5rem;
-            color: #fff;
+            font-weight: 600;
         }
 
-        .feature-card p {
+        .card p {
+            font-size: 0.92rem;
             color: var(--text-muted);
-            font-size: 0.95rem;
         }
 
-        .demo-section {
+        .section-header {
+            margin-bottom: 1.25rem;
+        }
+
+        .section-header h2 {
+            font-size: 1.4rem;
+            color: var(--heading);
+            font-weight: 700;
+        }
+
+        .table-wrapper {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 4rem;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 3rem;
         }
 
-        .demo-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .demo-title h2 {
-            font-size: 1.5rem;
-            color: #fff;
-        }
-
-        .demo-title p {
-            color: var(--text-muted);
+        table {
+            width: 100%;
+            border-collapse: collapse;
             font-size: 0.9rem;
         }
 
-        .iframe-container {
-            width: 100%;
-            height: 600px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
-            background: #0d1117;
-        }
-
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .cmd-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1.5rem;
-            background: var(--surface);
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-        }
-
-        .cmd-table th, .cmd-table td {
-            padding: 1rem 1.25rem;
+        th, td {
+            padding: 0.85rem 1.25rem;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
 
-        .cmd-table th {
-            background: #192231;
-            color: var(--primary);
+        th {
+            background: #1c2128;
+            color: var(--heading);
             font-weight: 600;
         }
 
-        .cmd-table code {
+        td code {
             font-family: 'JetBrains Mono', monospace;
-            color: var(--warning);
-            background: rgba(251, 191, 36, 0.1);
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
+            color: var(--accent);
+            font-size: 0.85rem;
+        }
+
+        .demo-frame {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 3rem;
+        }
+
+        .demo-bar {
+            padding: 0.75rem 1.25rem;
+            background: #1c2128;
+            border-bottom: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        iframe {
+            width: 100%;
+            height: 550px;
+            border: none;
+            background: var(--bg);
         }
 
         footer {
+            max-width: 1000px;
+            margin: 4rem auto 0 auto;
+            padding: 1.5rem;
             border-top: 1px solid var(--border);
-            padding: 2.5rem 1.5rem;
-            text-align: center;
             color: var(--text-muted);
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
         }
 
         footer a {
-            color: var(--primary);
+            color: var(--accent);
             text-decoration: none;
         }
     </style>
@@ -350,131 +314,144 @@
 <body>
 
     <header>
-        <div class="nav-container">
-            <a href="#" class="logo">⚡ <span>caddy-analyzer</span></a>
+        <div class="header-content">
+            <a href="#" class="brand">caddy-analyzer</a>
             <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="#demo">Live Report</a>
+                <a href="#demo">HTML Report</a>
                 <a href="#commands">Commands</a>
-                <a href="https://github.com/L9Lenny/caddy-analyzer" target="_blank" class="btn-github">
-                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-                    GitHub
-                </a>
+                <a href="https://github.com/L9Lenny/caddy-analyzer" target="_blank">GitHub</a>
             </div>
         </div>
     </header>
 
-    <section class="hero">
-        <div class="hero-badge">⚡ Zero-Config Caddy v2 Log Diagnostics</div>
-        <h1>The Ultimate Fast, Visual & Intelligent Access Log Analyzer</h1>
-        <p>A zero-dependency CLI tool, 6-tab interactive TUI dashboard, threat detector, and offline HTML report generator designed natively for Caddy v2 structured JSON access logs.</p>
+    <div class="hero">
+        <h1>Caddy v2 Access Log Analyzer & Security Inspector</h1>
+        <p>A single-binary CLI tool, live terminal dashboard, threat detector, and offline HTML report generator designed natively for Caddy's structured JSON log format.</p>
 
-        <div class="install-box">
-            <div class="install-header">
-                <button class="tab-btn active" onclick="setTab('sh')">Linux / macOS</button>
-                <button class="tab-btn" onclick="setTab('ps')">Windows PowerShell</button>
+        <div class="install-container">
+            <div class="install-tabs">
+                <button class="tab-btn active" onclick="setTab('sh')">curl (Linux / macOS)</button>
+                <button class="tab-btn" onclick="setTab('ps')">PowerShell (Windows)</button>
                 <button class="tab-btn" onclick="setTab('go')">go install</button>
                 <button class="tab-btn" onclick="setTab('docker')">Docker</button>
             </div>
-            <div class="install-content">
-                <div id="cmd-text" class="install-cmd">curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</div>
+            <div class="install-body">
+                <div id="cmd-text" class="cmd-code">curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</div>
                 <button class="copy-btn" onclick="copyCmd()">Copy</button>
             </div>
         </div>
-    </section>
+    </div>
 
-    <div class="container">
-        <section id="features">
-            <h2 class="section-title">✨ Key Features</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Native Caddy JSON Parsing</h3>
-                    <p>Parses Caddy v2 structured log schema out-of-the-box including nested TLS, headers, bytes, and float durations without regex configuration.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📊</div>
-                    <h3>Visual Terminal Bar Graphs</h3>
-                    <p>Displays Unicode proportion bars (<code>████████░░</code>) and Lipgloss status badges directly in your terminal output.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🛡️</div>
-                    <h3>Built-in Threat Detector</h3>
-                    <p>Scans for SQL Injection, XSS, Path Traversal, Log4j/JNDI, RCE, sensitive file probes (<code>.env</code>, <code>.git</code>), and automated scanners.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🚫</div>
-                    <h3>Real-time Firewall Guard</h3>
-                    <p>Monitors streaming logs and automatically blocks offending malicious IPs in real time via <code>iptables</code> thresholds.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔍</div>
-                    <h3>Comparative Log Diff</h3>
-                    <p>Compare two log files side-by-side (before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🐳</div>
-                    <h3>Multi-Source Streaming</h3>
-                    <p>Stream directly from local files, stdin pipe, Docker containers (<code>docker://caddy</code>), K8s pods (<code>k8s://pod</code>), or systemd journal.</p>
-                </div>
-            </div>
-        </section>
+    <div class="main-content">
 
-        <section id="demo" class="demo-section">
-            <div class="demo-header">
-                <div class="demo-title">
-                    <h2>🌐 Interactive HTML Report Live Preview</h2>
-                    <p>Generated standalone offline report (<code>caddy-analyze -f html -o report.html</code>)</p>
-                </div>
-            </div>
-            <div class="iframe-container">
-                <iframe src="demo.html" title="caddy-analyzer report demo"></iframe>
-            </div>
-        </section>
+        <!-- Terminal Output Sample -->
+        <div class="terminal-window">
+            <div class="term-title">$ caddy-analyze --detect /var/log/caddy/access.log</div>
+            <pre style="margin: 0;"><span style="color: #58a6ff; font-weight: bold;">⚡ Caddy Log Analysis Report</span>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        <section id="commands">
-            <h2 class="section-title">📖 Subcommands & CLI Reference</h2>
-            <table class="cmd-table">
+Period:           2026-07-27T12:33:38+02:00 — 2026-07-27T14:57:24+02:00
+Total Requests:   48,102
+Requests/sec:     5.58
+
+Status Codes Breakdown:
+  <span style="color: #3fb950;">2xx Success:     42,100 (87.5%)</span>  ███████████████░░░░░
+  <span style="color: #79c0ff;">3xx Redirect:     3,200 (6.7%)</span>   █░░░░░░░░░░░░░░░░░░░
+  <span style="color: #d29922;">4xx Client Err:   2,102 (4.4%)</span>   █░░░░░░░░░░░░░░░░░░░
+  <span style="color: #f85149;">5xx Server Err:     700 (1.4%)</span>   ░░░░░░░░░░░░░░░░░░░░
+
+Latency & Bandwidth:
+  Avg Latency:     2.95ms
+  P95 Latency:     5.66ms
+  Total Bytes:     48.2 MB
+
+Security & Threat Detection:
+  <span style="color: #f85149;">🚨 SQL Injection probes:   14 requests</span>
+  <span style="color: #d29922;">⚠️ Sensitive file probes:    8 requests (.env, .git)</span></pre>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>Zero Log Configuration</h3>
+                <p>Parses Caddy v2's native JSON schema out-of-the-box including nested TLS versions, request headers, float durations, and status codes.</p>
+            </div>
+            <div class="card">
+                <h3>Built-in Security Inspector</h3>
+                <p>Scans every line for SQLi, XSS, Path Traversal, Log4j, RCE, sensitive file probes (<code>.env</code>, <code>.git/config</code>), and scanner UAs.</p>
+            </div>
+            <div class="card">
+                <h3>Comparative Log Diff</h3>
+                <p>Compare two log files side-by-side (<code>caddy-analyze diff base.log curr.log</code>) to pinpoint 5xx spikes and RPS regressions after deploys.</p>
+            </div>
+            <div class="card">
+                <h3>Real-time Guard & Streaming</h3>
+                <p>Stream logs in real time (<code>tail</code>) or auto-block offending malicious IPs via <code>iptables</code> thresholds (<code>guard</code>).</p>
+            </div>
+        </div>
+
+        <!-- Live HTML Report Frame -->
+        <div id="demo" class="demo-frame">
+            <div class="demo-bar">
+                <span>Standalone Dark HTML Report Demo (caddy-analyze -f html)</span>
+                <span>Self-contained SVG Charts</span>
+            </div>
+            <iframe src="demo.html" title="caddy-analyzer HTML report preview"></iframe>
+        </div>
+
+        <!-- Commands Table -->
+        <div id="commands" class="section-header">
+            <h2>Command Reference</h2>
+        </div>
+        <div class="table-wrapper">
+            <table>
                 <thead>
                     <tr>
-                        <th>Subcommand</th>
-                        <th>Example</th>
-                        <th>Description</th>
+                        <th>Command / Flag</th>
+                        <th>Usage</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td><code>caddy-analyze</code></td>
-                        <td><code>caddy-analyze /var/log/caddy/access.log</code></td>
-                        <td>Run instant terminal analysis report with Unicode bar graphs</td>
+                        <td><code>caddy-analyze &lt;source&gt;</code></td>
+                        <td>Analyze log file, stdin, Docker (<code>docker://caddy</code>), or K8s (<code>k8s://pod</code>)</td>
                     </tr>
                     <tr>
-                        <td><code>tail</code></td>
-                        <td><code>caddy-analyze tail docker://my-caddy</code></td>
-                        <td>Stream and colorize Caddy access logs in real time</td>
+                        <td><code>caddy-analyze tail &lt;source&gt;</code></td>
+                        <td>Colorized real-time log viewer</td>
                     </tr>
                     <tr>
-                        <td><code>top</code></td>
-                        <td><code>caddy-analyze top path access.log</code></td>
-                        <td>Quick top-N metric inspector (path, ip, ua, status, bandwidth)</td>
+                        <td><code>caddy-analyze top &lt;field&gt;</code></td>
+                        <td>Inspect top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>bandwidth</code>)</td>
                     </tr>
                     <tr>
-                        <td><code>diff</code></td>
-                        <td><code>caddy-analyze diff base.log curr.log</code></td>
-                        <td>Compare two log files for RPS shifts, 5xx spikes & latency changes</td>
+                        <td><code>caddy-analyze diff &lt;log1&gt; &lt;log2&gt;</code></td>
+                        <td>Compare baseline vs current log file</td>
                     </tr>
                     <tr>
-                        <td><code>guard</code></td>
-                        <td><code>caddy-analyze guard --limit 100</code></td>
-                        <td>Auto-block malicious IPs in real time via iptables</td>
+                        <td><code>--detect</code></td>
+                        <td>Enable anomaly & security threat detection engine</td>
+                    </tr>
+                    <tr>
+                        <td><code>--slow 500ms</code></td>
+                        <td>Filter requests taking longer than specified duration</td>
+                    </tr>
+                    <tr>
+                        <td><code>--no-bots</code></td>
+                        <td>Exclude search engines and crawler traffic</td>
+                    </tr>
+                    <tr>
+                        <td><code>-f html -o report.html</code></td>
+                        <td>Generate single-file offline HTML report</td>
                     </tr>
                 </tbody>
             </table>
-        </section>
+        </div>
+
     </div>
 
     <footer>
-        <p>© 2026 caddy-analyzer | Distributed under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+        <div>caddy-analyzer — Open source software released under the MIT License.</div>
+        <div><a href="https://github.com/L9Lenny/caddy-analyzer" target="_blank">GitHub Repository</a></div>
     </footer>
 
     <script>
