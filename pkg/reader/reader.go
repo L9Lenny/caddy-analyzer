@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 type LogReader interface {

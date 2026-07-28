@@ -3,7 +3,7 @@ package analysis
 import (
 	"testing"
 
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 func TestDetectorSignatures(t *testing.T) {

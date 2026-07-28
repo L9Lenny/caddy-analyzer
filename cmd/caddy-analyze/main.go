@@ -1,6 +1,6 @@
 package main
 
-import "github.com/lenny/caddy-analyzer/cmd"
+import "github.com/L9Lenny/caddy-analyzer/cmd"
 
 func main() {
 	cmd.Execute()

@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lenny/caddy-analyzer/pkg/config"
+	"github.com/L9Lenny/caddy-analyzer/pkg/config"
 )
 
 var flagConfigGlobal bool

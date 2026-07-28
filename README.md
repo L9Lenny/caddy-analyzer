@@ -11,11 +11,11 @@
 
 ### ⚡ The Ultimate Fast, Visual & Intelligent Access Log Analyzer for Caddy v2 ⚡
 
-[![Go Version](https://img.shields.io/github/goversion/lenny/caddy-analyzer?style=flat-square&color=38bdf8)](https://go.dev)
-[![Go Report Card](https://goreportcard.com/badge/github.com/lenny/caddy-analyzer)](https://goreportcard.com/report/github.com/lenny/caddy-analyzer)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/lenny/caddy-analyzer/ci.yml?style=flat-square&label=CI&color=4ade80)](https://github.com/lenny/caddy-analyzer/actions)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/L9Lenny/caddy-analyzer?style=flat-square&color=38bdf8)](https://go.dev)
+[![Go Report Card](https://goreportcard.com/badge/github.com/L9Lenny/caddy-analyzer)](https://goreportcard.com/report/github.com/L9Lenny/caddy-analyzer)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/L9Lenny/caddy-analyzer/ci.yml?style=flat-square&label=CI&color=4ade80)](https://github.com/L9Lenny/caddy-analyzer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
-[![GitHub Release](https://img.shields.io/github/v/release/lenny/caddy-analyzer?style=flat-square&color=fbbf24)](https://github.com/lenny/caddy-analyzer/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/L9Lenny/caddy-analyzer?style=flat-square&color=fbbf24)](https://github.com/L9Lenny/caddy-analyzer/releases)
 
 ---
 
@@ -44,25 +44,25 @@
 ### Via 1-Line Installer Script (Linux & macOS)
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/lenny/caddy-analyzer/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
 ```
 
 ### Via PowerShell (Windows)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/lenny/caddy-analyzer/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex
 ```
 
 ### Via `go install`
 
 ```bash
-go install github.com/lenny/caddy-analyzer/cmd/caddy-analyze@latest
+go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest
 ```
 
 ### Via Docker
 
 ```bash
-docker run --rm -v /var/log/caddy:/logs ghcr.io/lenny/caddy-analyzer /logs/access.log
+docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log
 ```
 
 ---

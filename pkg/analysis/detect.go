@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 type DetectionType string

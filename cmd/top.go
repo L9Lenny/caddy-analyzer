@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lenny/caddy-analyzer/pkg/analysis"
-	"github.com/lenny/caddy-analyzer/pkg/output"
-	"github.com/lenny/caddy-analyzer/pkg/parser"
-	"github.com/lenny/caddy-analyzer/pkg/reader"
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
+	"github.com/L9Lenny/caddy-analyzer/pkg/output"
+	"github.com/L9Lenny/caddy-analyzer/pkg/parser"
+	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 var topCmd = &cobra.Command{

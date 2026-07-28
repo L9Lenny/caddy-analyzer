@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/lenny/caddy-analyzer/pkg/analysis"
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 func (r *Report) printHTML() {

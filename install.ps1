@@ -1,7 +1,7 @@
 # caddy-analyze static binary installer for Windows PowerShell
 $ErrorActionPreference = 'Stop'
 
-$Repo = "lenny/caddy-analyzer"
+$Repo = "L9Lenny/caddy-analyzer"
 $BinaryName = "caddy-analyze.exe"
 
 $Arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }

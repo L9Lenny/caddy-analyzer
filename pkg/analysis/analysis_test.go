@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lenny/caddy-analyzer/pkg/types"
+	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 func TestEngineProcessing(t *testing.T) {

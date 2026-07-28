@@ -1,4 +1,4 @@
-module github.com/lenny/caddy-analyzer
+module github.com/L9Lenny/caddy-analyzer
 
 go 1.24.2
 
