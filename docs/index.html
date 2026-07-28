@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>caddy-analyze(1) — Log analyzer for Caddy v2</title>
+    <title>caddy-analyzer — Documentation & User Manual</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #111111;
+            background: #0d1117;
             color: #c9d1d9;
             line-height: 1.6;
-            max-width: 860px;
+            max-width: 880px;
             margin: 0 auto;
-            padding: 2rem 1rem;
+            padding: 2rem 1.25rem;
         }
 
         h1, h2, h3 {
@@ -21,10 +21,10 @@
         }
 
         h1 {
-            font-size: 1.75rem;
-            border-bottom: 1px solid #333333;
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.85rem;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.6rem;
+            margin-bottom: 0.4rem;
             font-family: monospace;
         }
 
@@ -43,52 +43,57 @@
             text-decoration: underline;
         }
 
-        nav.toc {
+        /* Sticky Navigation Bar */
+        nav.nav-bar {
+            position: sticky;
+            top: 0;
             background: #161b22;
             border: 1px solid #30363d;
-            border-radius: 4px;
-            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
             margin-bottom: 2.5rem;
-            font-size: 0.9rem;
-        }
-
-        nav.toc strong {
-            color: #ffffff;
-            display: block;
-            margin-bottom: 0.5rem;
-            font-family: monospace;
-        }
-
-        nav.toc ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
             display: flex;
+            gap: 0.75rem;
             flex-wrap: wrap;
-            gap: 0.75rem 1.25rem;
+            z-index: 100;
         }
 
-        nav.toc a {
-            color: #8b949e;
+        nav.nav-bar a {
+            color: #c9d1d9;
+            font-size: 0.88rem;
             font-family: monospace;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            transition: background 0.15s;
         }
 
-        nav.toc a:hover {
+        nav.nav-bar a:hover {
+            background: #21262d;
             color: #58a6ff;
+            text-decoration: none;
+        }
+
+        section {
+            margin-bottom: 3.5rem;
         }
 
         h2 {
-            font-size: 1.35rem;
-            margin-top: 3rem;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid #21262d;
-            padding-bottom: 0.4rem;
+            font-size: 1.4rem;
+            color: #ffffff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         h3 {
             font-size: 1.05rem;
             margin-top: 1.5rem;
             margin-bottom: 0.5rem;
+            color: #e6edf3;
         }
 
         pre, code {
@@ -99,35 +104,35 @@
         pre {
             background: #161b22;
             border: 1px solid #30363d;
-            border-radius: 4px;
+            border-radius: 6px;
             padding: 1rem;
             overflow-x: auto;
             color: #c9d1d9;
-            margin: 1rem 0 1.5rem 0;
+            margin: 0.75rem 0 1.25rem 0;
         }
 
         p {
             margin-bottom: 1rem;
         }
 
-        ul {
+        ul, ol {
             margin: 0 0 1.5rem 1.5rem;
         }
 
         li {
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.4rem;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 1rem 0 2rem 0;
+            margin: 1rem 0 1.75rem 0;
             font-size: 0.9rem;
         }
 
         th, td {
             text-align: left;
-            padding: 0.6rem 0.8rem;
+            padding: 0.65rem 0.85rem;
             border-bottom: 1px solid #21262d;
         }
 
@@ -141,11 +146,23 @@
             color: #58a6ff;
         }
 
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            font-family: monospace;
+            font-weight: 600;
+            background: #21262d;
+            color: #8b949e;
+            border: 1px solid #30363d;
+        }
+
         iframe {
             width: 100%;
             height: 520px;
             border: 1px solid #30363d;
-            border-radius: 4px;
+            border-radius: 6px;
             background: #0d1117;
             margin: 1rem 0 2rem 0;
         }
@@ -158,137 +175,160 @@
             font-size: 0.85rem;
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
     </style>
 </head>
 <body>
 
-    <h1>caddy-analyze(1)</h1>
-    <div class="subtitle">Fast, zero-dependency access log analyzer and security inspector for Caddy v2</div>
+    <h1>caddy-analyzer</h1>
+    <div class="subtitle">User Manual & Reference Guide for Caddy v2 Log Analysis and Security Inspection</div>
 
-    <nav class="toc">
-        <strong>DOCUMENTATION SECTIONS</strong>
-        <ul>
-            <li><a href="#synopsis">1. Synopsis & Overview</a></li>
-            <li><a href="#installation">2. Installation</a></li>
-            <li><a href="#sources">3. Log Sources</a></li>
-            <li><a href="#subcommands">4. Subcommands Reference</a></li>
-            <li><a href="#security">5. Threat Detector</a></li>
-            <li><a href="#reports">6. TUI & HTML Reports</a></li>
-            <li><a href="#demo">7. Live Report Demo</a></li>
-        </ul>
+    <nav class="nav-bar">
+        <a href="#quickstart">⚡ Quickstart</a>
+        <a href="#install">📦 Install</a>
+        <a href="#commands">🛠️ Commands</a>
+        <a href="#sources">🔌 Log Sources</a>
+        <a href="#security">🛡️ Security</a>
+        <a href="#dashboards">📊 Dashboards</a>
     </nav>
 
-    <!-- 1. Synopsis -->
-    <h2 id="synopsis">1. Synopsis & Overview</h2>
-    <p><strong>caddy-analyze</strong> is a command-line tool written in Go for parsing, analyzing, and monitoring Caddy v2 structured JSON access logs. It works out-of-the-box without custom log format definitions, parsing nested TLS handshakes, User-Agent classifications, latencies, status codes, and bandwidth metrics.</p>
+    <!-- SECTION 1: QUICKSTART -->
+    <section id="quickstart">
+        <h2>⚡ 1. Quickstart (1-Minute Guide)</h2>
+        <p>Analyze any Caddy v2 access log file instantly without configuration:</p>
+        <pre># 1. Run standard terminal analysis
+caddy-analyze /var/log/caddy/access.log
 
-    <!-- 2. Installation -->
-    <h2 id="installation">2. Installation</h2>
+# 2. Run with security threat detection (SQLi, XSS, Path Traversal)
+caddy-analyze --detect /var/log/caddy/access.log
 
-    <h3>Linux & macOS (One-line installer)</h3>
-    <pre>curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</pre>
+# 3. Filter slow requests (> 500ms) excluding search engine bots
+caddy-analyze --slow 500ms --no-bots /var/log/caddy/access.log</pre>
+    </section>
 
-    <h3>Windows PowerShell (One-line installer)</h3>
-    <pre>iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex</pre>
+    <!-- SECTION 2: INSTALLATION -->
+    <section id="install">
+        <h2>📦 2. Installation</h2>
+        <p>Install <code>caddy-analyze</code> as a single static binary on any platform:</p>
 
-    <h3>Go Toolchain</h3>
-    <pre>go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest</pre>
+        <h3>Linux & macOS</h3>
+        <pre>curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh</pre>
 
-    <h3>Docker Container</h3>
-    <pre>docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log</pre>
+        <h3>Windows (PowerShell)</h3>
+        <pre>iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex</pre>
 
-    <!-- 3. Log Sources -->
-    <h2 id="sources">3. Log Sources & Input Methods</h2>
-    <p><code>caddy-analyze</code> natively supports reading from multiple input sources without exporting files:</p>
+        <h3>Go (v1.22+)</h3>
+        <pre>go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest</pre>
 
-    <ul>
-        <li><strong>Local Log File / Glob:</strong> <code>caddy-analyze /var/log/caddy/access.log</code> or <code>/var/log/caddy/*.log</code></li>
-        <li><strong>Stdin Pipe:</strong> <code>cat access.log | caddy-analyze -</code></li>
-        <li><strong>Docker Container:</strong> <code>caddy-analyze docker://my-caddy-container</code></li>
-        <li><strong>Kubernetes Pod:</strong> <code>caddy-analyze k8s://my-pod -n production</code></li>
-        <li><strong>Systemd Journalctl:</strong> <code>caddy-analyze journalctl://caddy.service</code></li>
-    </ul>
+        <h3>Docker</h3>
+        <pre>docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log</pre>
+    </section>
 
-    <!-- 4. Subcommands -->
-    <h2 id="subcommands">4. Subcommands Reference</h2>
+    <!-- SECTION 3: COMMANDS -->
+    <section id="commands">
+        <h2>🛠️ 3. Command Reference</h2>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Subcommand</th>
-                <th>Description</th>
-                <th>Example</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><code>caddy-analyze [source]</code></td>
-                <td>Run analysis report. Auto-detects local log files if omitted.</td>
-                <td><code>caddy-analyze /var/log/caddy/access.log</code></td>
-            </tr>
-            <tr>
-                <td><code>tail [source]</code></td>
-                <td>Stream and colorize access logs in real time.</td>
-                <td><code>caddy-analyze tail docker://my-caddy</code></td>
-            </tr>
-            <tr>
-                <td><code>top [dimension] [source]</code></td>
-                <td>Quick top-N metric inspector (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>bandwidth</code>).</td>
-                <td><code>caddy-analyze top ip access.log</code></td>
-            </tr>
-            <tr>
-                <td><code>diff &lt;log1&gt; &lt;log2&gt;</code></td>
-                <td>Compare two log files for RPS shifts, 5xx spikes, and latency changes.</td>
-                <td><code>caddy-analyze diff base.log curr.log</code></td>
-            </tr>
-            <tr>
-                <td><code>guard [source]</code></td>
-                <td>Monitor live log stream and auto-block malicious IPs via iptables.</td>
-                <td><code>sudo caddy-analyze guard --limit 100</code></td>
-            </tr>
-            <tr>
-                <td><code>config [show|set|reset]</code></td>
-                <td>Manage persistent default log source configuration.</td>
-                <td><code>caddy-analyze config /var/log/caddy/access.log</code></td>
-            </tr>
-            <tr>
-                <td><code>block / unban</code></td>
-                <td>Manually block or unban IP addresses via iptables.</td>
-                <td><code>sudo caddy-analyze block 1.2.3.4</code></td>
-            </tr>
-        </tbody>
-    </table>
+        <table>
+            <thead>
+                <tr>
+                    <th>Command</th>
+                    <th>Purpose</th>
+                    <th>Example Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>caddy-analyze</code></td>
+                    <td>Generate full terminal analysis report</td>
+                    <td><code>caddy-analyze access.log</code></td>
+                </tr>
+                <tr>
+                    <td><code>top</code></td>
+                    <td>Inspect top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>bandwidth</code>)</td>
+                    <td><code>caddy-analyze top ip access.log</code></td>
+                </tr>
+                <tr>
+                    <td><code>tail</code></td>
+                    <td>Stream and colorize access logs in real time</td>
+                    <td><code>caddy-analyze tail docker://my-caddy</code></td>
+                </tr>
+                <tr>
+                    <td><code>diff</code></td>
+                    <td>Compare two log files (detect 5xx spikes & RPS shifts)</td>
+                    <td><code>caddy-analyze diff baseline.log current.log</code></td>
+                </tr>
+                <tr>
+                    <td><code>guard</code></td>
+                    <td>Auto-block attacking IPs in real time via iptables</td>
+                    <td><code>sudo caddy-analyze guard --limit 50</code></td>
+                </tr>
+                <tr>
+                    <td><code>config</code></td>
+                    <td>Manage persistent default log source (local/global)</td>
+                    <td><code>caddy-analyze config /var/log/caddy/access.log</code></td>
+                </tr>
+                <tr>
+                    <td><code>block / unban</code></td>
+                    <td>Manually block or unban IP addresses via iptables</td>
+                    <td><code>sudo caddy-analyze block 1.2.3.4</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
 
-    <!-- 5. Threat Detector -->
-    <h2 id="security">5. Security Threat Engine (--detect)</h2>
-    <p>Pass the <code>--detect</code> / <code>-d</code> flag to inspect request URIs, headers, and User-Agents for common security attack patterns:</p>
+    <!-- SECTION 4: LOG SOURCES -->
+    <section id="sources">
+        <h2>🔌 4. Log Sources & Input Formats</h2>
+        <p>Pass any of the following input formats as positional arguments:</p>
 
-    <ul>
-        <li><strong>SQL Injection:</strong> UNION SELECT, OR 1=1, information_schema, pg_sleep()</li>
-        <li><strong>Path Traversal & LFI:</strong> ../, /etc/passwd, php://filter, file:///</li>
-        <li><strong>Cross-Site Scripting (XSS):</strong> &lt;script&gt;, javascript:, onerror=, alert()</li>
-        <li><strong>Remote Code Execution (RCE):</strong> /bin/sh, powershell, whoami, eval()</li>
-        <li><strong>Sensitive File Probes:</strong> .env, .git/config, wp-config.php, id_rsa</li>
-        <li><strong>Automated Scanners:</strong> sqlmap, nikto, dirbuster, gobuster, nmap</li>
-    </ul>
+        <ul>
+            <li><strong>Local Log File:</strong> <code>caddy-analyze /var/log/caddy/access.log</code></li>
+            <li><strong>Glob Patterns:</strong> <code>caddy-analyze /var/log/caddy/*.log</code></li>
+            <li><strong>Standard Input (Stdin):</strong> <code>cat access.log | caddy-analyze -</code></li>
+            <li><strong>Docker Containers:</strong> <code>caddy-analyze docker://my-caddy-container</code></li>
+            <li><strong>Kubernetes Pods:</strong> <code>caddy-analyze k8s://my-pod -n production</code></li>
+            <li><strong>Systemd Journalctl:</strong> <code>caddy-analyze journalctl://caddy.service</code></li>
+        </ul>
+    </section>
 
-    <!-- 6. Reports -->
-    <h2 id="reports">6. TUI Dashboard & HTML Reports</h2>
+    <!-- SECTION 5: SECURITY -->
+    <section id="security">
+        <h2>🛡️ 5. Threat Detector & Firewall Guard</h2>
 
-    <h3>Interactive TUI Dashboard (--watch)</h3>
-    <pre>caddy-analyze --watch /var/log/caddy/access.log</pre>
-    <p>Navigable 6-tab terminal user interface: <code>[1: Summary]</code> <code>[2: Realtime Stream]</code> <code>[3: Security Alerts]</code> <code>[4: Top IPs]</code> <code>[5: Top Paths]</code> <code>[6: User Agents]</code>.</p>
+        <h3>Threat Engine (--detect)</h3>
+        <p>Pass <code>--detect</code> / <code>-d</code> to enable deep packet analysis against malicious patterns:</p>
+        <ul>
+            <li><strong>SQL Injection:</strong> <code>UNION SELECT</code>, <code>OR 1=1</code>, <code>information_schema</code></li>
+            <li><strong>Path Traversal / LFI:</strong> <code>../</code>, <code>/etc/passwd</code>, <code>php://filter</code></li>
+            <li><strong>Cross-Site Scripting (XSS):</strong> <code>&lt;script&gt;</code>, <code>javascript:</code>, <code>onerror=</code></li>
+            <li><strong>Remote Code Execution (RCE):</strong> <code>/bin/sh</code>, <code>powershell</code>, <code>whoami</code></li>
+            <li><strong>Sensitive File Discovery:</strong> <code>.env</code>, <code>.git/config</code>, <code>wp-config.php</code></li>
+            <li><strong>Scanner Tools:</strong> <code>sqlmap</code>, <code>nikto</code>, <code>dirbuster</code>, <code>nmap</code></li>
+        </ul>
 
-    <h3>Offline HTML Report Export (-f html)</h3>
-    <pre>caddy-analyze -f html -o report.html --detect /var/log/caddy/access.log</pre>
+        <h3>Real-time Firewall Guard Daemon (guard)</h3>
+        <pre>sudo caddy-analyze guard --limit 50 --window 1m docker://my-caddy</pre>
+    </section>
 
-    <!-- 7. Demo -->
-    <h2 id="demo">7. Live HTML Report Sample</h2>
-    <iframe src="demo.html" title="HTML Report Demo"></iframe>
+    <!-- SECTION 6: DASHBOARDS -->
+    <section id="dashboards">
+        <h2>📊 6. Interactive Dashboards & Exports</h2>
+
+        <h3>Terminal TUI Dashboard (--watch)</h3>
+        <pre>caddy-analyze --watch /var/log/caddy/access.log</pre>
+        <p>Interactive 6-tab terminal interface: <code>[1: Summary]</code> <code>[2: Realtime Stream]</code> <code>[3: Security Alerts]</code> <code>[4: Top IPs]</code> <code>[5: Top Paths]</code> <code>[6: User Agents]</code>.</p>
+
+        <h3>Offline Dark-Mode HTML Report (-f html)</h3>
+        <pre>caddy-analyze -f html -o report.html --detect /var/log/caddy/access.log</pre>
+
+        <h3>Interactive HTML Report Preview</h3>
+        <iframe src="demo.html" title="HTML Report Demo"></iframe>
+    </section>
 
     <footer>
-        <div>caddy-analyzer — Open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</div>
+        <div>caddy-analyzer — MIT License</div>
         <div><a href="https://github.com/L9Lenny/caddy-analyzer">GitHub Repository</a></div>
     </footer>
 
