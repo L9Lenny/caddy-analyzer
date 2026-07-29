@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <rect width="400" height="500" fill="#ffffff"/>
+  
+  <!-- Shadow under feet -->
+  <ellipse cx="200" cy="455" rx="70" ry="10" fill="#e0e0e0"/>
+  
+  <!-- Left leg -->
+  <ellipse cx="170" cy="430" rx="25" ry="20" fill="#c4d4e0"/>
+  <!-- Left foot -->
+  <ellipse cx="160" cy="445" rx="22" ry="10" fill="#d3e0e8"/>
+  
+  <!-- Right leg -->
+  <ellipse cx="230" cy="430" rx="25" ry="20" fill="#c4d4e0"/>
+  <!-- Right foot -->
+  <ellipse cx="240" cy="445" rx="22" ry="10" fill="#d3e0e8"/>
+  
+  <!-- Body (pear shape) -->
+  <ellipse cx="200" cy="330" rx="85" ry="95" fill="#d3e0e8"/>
+  <!-- Belly highlight -->
+  <ellipse cx="200" cy="340" rx="55" ry="70" fill="#eaf0f4"/>
+  
+  <!-- Left arm -->
+  <path d="M115 290 Q80 310 75 350 Q72 370 85 375 Q95 378 100 365 Q110 340 120 320" fill="#c4d4e0" stroke="#b8c8d4" stroke-width="1.5"/>
+  <!-- Left paw -->
+  <ellipse cx="83" cy="367" rx="15" ry="10" fill="#d3e0e8"/>
+  
+  <!-- Right arm holding terminal screen -->
+  <path d="M285 290 Q320 300 330 330 Q335 345 325 355 Q315 360 310 348 Q300 325 290 310" fill="#c4d4e0" stroke="#b8c8d4" stroke-width="1.5"/>
+  <!-- Right paw -->
+  <ellipse cx="322" cy="348" rx="15" ry="10" fill="#d3e0e8"/>
+  
+  <!-- Holographic terminal screen (held by right arm) -->
+  <rect x="310" y="300" width="70" height="50" rx="6" fill="#0a1628" stroke="#00ff88" stroke-width="2"/>
+  <rect x="315" y="305" width="60" height="40" rx="3" fill="#0d1f3c"/>
+  <text x="320" y="320" font-family="monospace" font-size="8" fill="#00ff88">$ caddy-analyze</text>
+  <text x="320" y="332" font-family="monospace" font-size="8" fill="#ff5555">  --5xx --no-bots</text>
+  <text x="320" y="344" font-family="monospace" font-size="8" fill="#00ff88">  3 entries</text>
+  <rect x="315" y="305" width="60" height="40" rx="3" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.3"/>
+  
+  <!-- Shield badge on chest -->
+  <path d="M200 280 L215 288 L215 302 L200 310 L185 302 L185 288 Z" fill="#222" stroke="#00ff88" stroke-width="1.5"/>
+  <text x="200" y="299" font-family="monospace" font-size="10" fill="#00ff88" text-anchor="middle">✓</text>
+  
+  <!-- Neck -->
+  <ellipse cx="200" cy="240" rx="50" ry="15" fill="#c4d4e0"/>
+  
+  <!-- Head -->
+  <ellipse cx="200" cy="190" rx="75" ry="75" fill="#d3e0e8"/>
+  
+  <!-- Left ear -->
+  <ellipse cx="140" cy="130" rx="18" ry="16" fill="#c4d4e0"/>
+  <ellipse cx="140" cy="132" rx="10" ry="9" fill="#e8d0c8"/>
+  
+  <!-- Right ear -->
+  <ellipse cx="260" cy="130" rx="18" ry="16" fill="#c4d4e0"/>
+  <ellipse cx="260" cy="132" rx="10" ry="9" fill="#e8d0c8"/>
+  
+  <!-- Caddy visor cap -->
+  <ellipse cx="200" cy="145" rx="78" ry="28" fill="#1a1a2e"/>
+  <path d="M122 145 Q125 130 140 125 L260 125 Q275 130 278 145" fill="#1a1a2e"/>
+  <!-- Cap brim -->
+  <path d="M140 148 Q200 170 280 148 Q260 165 200 170 Q140 165 140 148Z" fill="#16213e"/>
+  <!-- Cap antenna -->
+  <line x1="200" y1="117" x2="200" y2="95" stroke="#333" stroke-width="2.5"/>
+  <circle cx="200" cy="92" r="5" fill="#00ff88"/>
+  <circle cx="200" cy="92" r="2" fill="#88ffcc"/>
+  
+  <!-- Eyes -->
+  <ellipse cx="172" cy="185" rx="16" ry="18" fill="#ffffff" stroke="#b8c8d4" stroke-width="1"/>
+  <ellipse cx="228" cy="185" rx="16" ry="18" fill="#ffffff" stroke="#b8c8d4" stroke-width="1"/>
+  <!-- Pupils -->
+  <circle cx="175" cy="186" r="8" fill="#222"/>
+  <circle cx="225" cy="186" r="8" fill="#222"/>
+  <!-- Eye highlights -->
+  <circle cx="178" cy="182" r="3" fill="#ffffff"/>
+  <circle cx="228" cy="182" r="3" fill="#ffffff"/>
+  
+  <!-- Cheek blush -->
+  <ellipse cx="150" cy="205" rx="12" ry="7" fill="#f0c8c0" opacity="0.4"/>
+  <ellipse cx="250" cy="205" rx="12" ry="7" fill="#f0c8c0" opacity="0.4"/>
+  
+  <!-- Nose -->
+  <ellipse cx="200" cy="210" rx="8" ry="5" fill="#333"/>
+  
+  <!-- Mouth / smile -->
+  <path d="M185 220 Q200 230 215 220" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- Front teeth -->
+  <rect x="193" y="214" width="6" height="8" rx="1" fill="#ffffff" stroke="#ddd" stroke-width="0.5"/>
+  <rect x="201" y="214" width="6" height="8" rx="1" fill="#ffffff" stroke="#ddd" stroke-width="0.5"/>
+  
+  <!-- Magnifying glass tucked under left arm -->
+  <circle cx="70" cy="350" r="20" fill="none" stroke="#555" stroke-width="3"/>
+  <!-- Lens -->
+  <circle cx="70" cy="350" r="14" fill="#e8f4ff" opacity="0.3"/>
+  <!-- Handle -->
+  <line x1="83" y1="363" x2="105" y2="385" stroke="#555" stroke-width="4" stroke-linecap="round"/>
+</svg>
