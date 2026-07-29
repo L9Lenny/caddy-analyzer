@@ -40,7 +40,7 @@ type Model struct {
 	err        error
 	stats      *types.Stats
 	rps        float64
-	recentLogs []string
+	recentLogs []*types.LogEntry
 
 	ipTable   table.Model
 	pathTable table.Model
@@ -48,14 +48,21 @@ type Model struct {
 }
 
 var (
-	styleTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	styleLabel  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
-	styleOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	styleWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
-	styleError  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleInfo   = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
-	styleHelp   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	styleActive = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Underline(true)
+	styleTitle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	styleLabel    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
+	styleOK       = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	styleWarn     = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+	styleError    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	styleInfo     = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
+	styleHelp     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleActive   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Underline(true)
+	styleTail2xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+	styleTail3xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
+	styleTail4xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true)
+	styleTail5xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	styleTailDim  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleTailIP   = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
+	styleTailPath = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
 )
 
 func NewModel(linesCh chan string) Model {
@@ -68,7 +75,7 @@ func NewModel(linesCh chan string) Model {
 		detector:   det,
 		linesCh:    linesCh,
 		current:    viewSummary,
-		recentLogs: make([]string, 0, 20),
+		recentLogs: make([]*types.LogEntry, 0, 20),
 	}
 }
 
@@ -137,7 +144,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			eng.SetDetector(m.detector)
 			m.engine = eng
 			m.stats = nil
-			m.recentLogs = make([]string, 0, 20)
+			m.recentLogs = make([]*types.LogEntry, 0, 20)
 		}
 
 	case LineMsg:
@@ -145,12 +152,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		entry, err := parser.Parse(line)
 		if err == nil && entry != nil {
 			m.engine.Process(entry)
-			logStr := fmt.Sprintf("[%s] %d %s %s (%s) - %s",
-				entry.Timestamp.Format("15:04:05"), entry.Status, entry.Method, entry.Path(), formatDuration(entry.Duration), entry.RemoteIP)
 			if len(m.recentLogs) >= 15 {
 				m.recentLogs = m.recentLogs[1:]
 			}
-			m.recentLogs = append(m.recentLogs, logStr)
+			m.recentLogs = append(m.recentLogs, entry)
 		}
 		return m, waitForLines(m.linesCh)
 
@@ -315,8 +320,43 @@ func (m Model) renderRealtime(b *strings.Builder) {
 		fmt.Fprintf(b, "  Waiting for log events...\n")
 		return
 	}
-	for _, l := range m.recentLogs {
-		fmt.Fprintf(b, "  %s\n", l)
+	for _, e := range m.recentLogs {
+		if e == nil {
+			continue
+		}
+		timeStr := styleTailDim.Render(e.Timestamp.Format("15:04:05"))
+		statusStr := tuiFormatStatus(e.Status)
+		methodStr := lipgloss.NewStyle().Bold(true).Render(e.Method)
+		pathStr := styleTailPath.Render(e.Path())
+		ipStr := styleTailIP.Render(e.RemoteIP)
+		sizeStr := formatBytes(e.Size)
+		durStr := formatDuration(e.Duration)
+
+		uaInfo := ""
+		if e.IsBot {
+			uaInfo = fmt.Sprintf(" [%s]", lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render("🤖 "+e.BotName))
+		} else if e.Browser != "" || e.OS != "" {
+			uaInfo = fmt.Sprintf(" [%s/%s]", e.OS, e.Browser)
+		}
+
+		fmt.Fprintf(b, "  %s  %s  %s %s  (%s, %s) - %s%s\n",
+			timeStr, statusStr, methodStr, pathStr, sizeStr, durStr, ipStr, uaInfo)
+	}
+}
+
+func tuiFormatStatus(s int) string {
+	str := fmt.Sprintf("%d", s)
+	switch {
+	case s >= 200 && s < 300:
+		return styleTail2xx.Render(str + " OK")
+	case s >= 300 && s < 400:
+		return styleTail3xx.Render(str + " REDIR")
+	case s >= 400 && s < 500:
+		return styleTail4xx.Render(str + " WARN")
+	case s >= 500:
+		return styleTail5xx.Render(str + " ERR")
+	default:
+		return str
 	}
 }
 
