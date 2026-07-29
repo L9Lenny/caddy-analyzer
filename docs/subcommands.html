@@ -107,7 +107,7 @@
     <h2>1. Comprehensive CLI Flags Reference</h2>
     <p>All flags can be combined with any subcommand or main analysis execution:</p>
 
-    <h3>HTTP Status & Response Filters</h3>
+    <h3>Time Range & Request Filters</h3>
     <table>
         <thead>
             <tr>
@@ -119,87 +119,112 @@
         </thead>
         <tbody>
             <tr>
-                <td><code>--2xx</code></td>
-                <td>-</td>
-                <td><code>false</code></td>
-                <td>Filter only successful HTTP 2xx status responses (200–299). <code>caddy-analyze --2xx</code></td>
-            </tr>
-            <tr>
-                <td><code>--3xx</code></td>
-                <td>-</td>
-                <td><code>false</code></td>
-                <td>Filter only redirection HTTP 3xx status responses (300–399). <code>caddy-analyze --3xx</code></td>
-            </tr>
-            <tr>
-                <td><code>--4xx</code></td>
-                <td>-</td>
-                <td><code>false</code></td>
-                <td>Filter only client error HTTP 4xx status responses (400–499). <code>caddy-analyze --4xx</code></td>
-            </tr>
-            <tr>
-                <td><code>--5xx</code></td>
-                <td>-</td>
-                <td><code>false</code></td>
-                <td>Filter only server error HTTP 5xx status responses (500–599). <code>caddy-analyze --5xx</code></td>
-            </tr>
-            <tr>
-                <td><code>--errors-only</code></td>
-                <td><code>-e</code></td>
-                <td><code>false</code></td>
-                <td>Filter all error responses (HTTP status &ge; 400). <code>caddy-analyze -e</code></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h3>Performance & Network Filters</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Flag</th>
-                <th>Short</th>
-                <th>Default</th>
-                <th>Description & Usage Example</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><code>--slow</code></td>
+                <td><code>--from</code></td>
                 <td>-</td>
                 <td><code>""</code></td>
-                <td>Filter requests taking longer than specified duration threshold. <code>caddy-analyze --slow 500ms</code> or <code>--slow 1.5s</code></td>
+                <td>Filter entries after a time (RFC3339 or relative: <code>5m</code>, <code>1h</code>, <code>2d</code>). <code>caddy-analyze --from 1h</code></td>
+            </tr>
+            <tr>
+                <td><code>--to</code></td>
+                <td>-</td>
+                <td><code>""</code></td>
+                <td>Filter entries before a time (RFC3339). <code>caddy-analyze --to 2024-01-02T00:00:00Z</code></td>
             </tr>
             <tr>
                 <td><code>--ip</code></td>
                 <td>-</td>
                 <td><code>""</code></td>
-                <td>Filter requests originating from a specific client IP address or CIDR subnet. <code>caddy-analyze --ip 192.168.1.50</code></td>
+                <td>Filter by client IP or CIDR subnet. <code>caddy-analyze --ip 192.168.1.50</code> or <code>--ip 10.0.0.0/8</code></td>
             </tr>
             <tr>
                 <td><code>--exclude-ip</code></td>
                 <td>-</td>
                 <td><code>""</code></td>
-                <td>Exclude requests originating from an IP address or CIDR subnet. <code>caddy-analyze --exclude-ip 127.0.0.1</code></td>
+                <td>Exclude IP or CIDR subnet. <code>caddy-analyze --exclude-ip 10.0.0.0/8</code></td>
+            </tr>
+            <tr>
+                <td><code>--status</code></td>
+                <td><code>-s</code></td>
+                <td><code>""</code></td>
+                <td>Filter by status code(s). <code>caddy-analyze -s 200,404</code></td>
+            </tr>
+            <tr>
+                <td><code>--method</code></td>
+                <td><code>-m</code></td>
+                <td><code>""</code></td>
+                <td>Filter by HTTP method. <code>caddy-analyze -m POST</code></td>
+            </tr>
+            <tr>
+                <td><code>--path</code></td>
+                <td><code>-p</code></td>
+                <td><code>""</code></td>
+                <td>Filter by path glob. <code>caddy-analyze -p /api/*</code></td>
+            </tr>
+            <tr>
+                <td><code>--slow</code></td>
+                <td>-</td>
+                <td><code>""</code></td>
+                <td>Filter requests slower than duration. <code>caddy-analyze --slow 500ms</code></td>
+            </tr>
+            <tr>
+                <td><code>--2xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter 2xx success responses. <code>caddy-analyze --2xx</code></td>
+            </tr>
+            <tr>
+                <td><code>--3xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter 3xx redirect responses. <code>caddy-analyze --3xx</code></td>
+            </tr>
+            <tr>
+                <td><code>--4xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter 4xx client errors. <code>caddy-analyze --4xx</code></td>
+            </tr>
+            <tr>
+                <td><code>--5xx</code></td>
+                <td>-</td>
+                <td><code>false</code></td>
+                <td>Filter 5xx server errors. <code>caddy-analyze --5xx</code></td>
+            </tr>
+            <tr>
+                <td><code>--errors-only</code></td>
+                <td><code>-e</code></td>
+                <td><code>false</code></td>
+                <td>Filter server errors only. <code>caddy-analyze -e</code></td>
             </tr>
             <tr>
                 <td><code>--no-bots</code></td>
                 <td>-</td>
                 <td><code>false</code></td>
-                <td>Exclude search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated bots. <code>caddy-analyze --no-bots</code></td>
+                <td>Exclude bot/crawler traffic. <code>caddy-analyze --no-bots</code></td>
             </tr>
             <tr>
                 <td><code>--bots-only</code></td>
                 <td>-</td>
                 <td><code>false</code></td>
-                <td>Include ONLY search engine crawlers and automated bots. <code>caddy-analyze --bots-only</code></td>
+                <td>Include only bot traffic. <code>caddy-analyze --bots-only</code></td>
             </tr>
             <tr>
                 <td><code>--grep</code></td>
                 <td><code>-g</code></td>
                 <td><code>""</code></td>
-                <td>Filter entries containing string pattern in URI path, host, or User-Agent (case-insensitive). <code>caddy-analyze -g "/api/v1"</code></td>
+                <td>Search across URI, User-Agent, IP, Host. <code>caddy-analyze -g "/api"</code></td>
             </tr>
         </tbody>
     </table>
+
+    <h3>Filter Behavior: Listing vs Report</h3>
+    <p>When entry-level filters (<code>--ip</code>, <code>-s</code>, <code>-m</code>, <code>-p</code>, <code>--5xx</code>, <code>--no-bots</code>, <code>-g</code>, etc.) are active, <code>caddy-analyze</code> automatically switches to a color-coded log listing instead of the aggregate report. Active filters are shown in the output header for all formats.</p>
+    <pre>caddy-analyze --ip 10.0.0.0/8 access.log
+15 entries matched
+
+14:29:01  204 OK  OPTIONS /heartbeat  (0 B, 1.05ms) - 104.28.161.103
+14:29:01  200 OK  POST /heartbeat     (0 B, 4.04ms) - 104.28.161.103</pre>
+    <p>Use <code>-f json</code>, <code>-f csv</code>, <code>-f html</code>, or <code>-o &lt;file&gt;</code> to force the aggregate report. Time-based filters (<code>--from</code>, <code>--to</code>) alone still show the report.</p>
 
     <h3>Display & Output Configuration Flags</h3>
     <table>
@@ -216,7 +241,7 @@
                 <td><code>--detect</code></td>
                 <td><code>-d</code></td>
                 <td><code>false</code></td>
-                <td>Enable security threat detection engine (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners). <code>caddy-analyze --detect</code></td>
+                <td>Enable security threat detection (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners). Shows per-IP suspicious request details. <code>caddy-analyze --detect</code></td>
             </tr>
             <tr>
                 <td><code>--format</code></td>
@@ -259,14 +284,21 @@
 
     <h2>2. Subcommands Specification</h2>
 
-    <h3><code>caddy-analyze [source]</code></h3>
-    <p>Runs standard batch analysis over the log source, generating a terminal summary report with visual bar graphs, status distribution, latency percentiles (p50, p90, p95, p99), bandwidth metrics, and top client IPs/paths.</p>
+    <h3><code>caddy-analyze [source] [flags]</code></h3>
+    <p>Runs batch analysis over the log source. When entry-level filters are active, shows a color-coded log listing instead of the aggregate report. Supports all flags.</p>
+    <pre>caddy-analyze
+caddy-analyze --detect
+caddy-analyze --ip 10.0.0.0/8
+caddy-analyze --5xx --no-bots
+caddy-analyze -f html -o report.html</pre>
 
-    <h3><code>tail [source]</code></h3>
-    <p>Streams and colorizes access log entries into clean terminal output with status badges, method, latency, payload size, client IP, and User-Agent classification.</p>
+    <h3><code>tail [source] [flags]</code></h3>
+    <p>Streams and colorizes access log entries in real time. Supports all root-level filters (<code>--ip</code>, <code>--5xx</code>, <code>--no-bots</code>, etc.).</p>
+    <pre>caddy-analyze tail docker://my-caddy
+caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
 
-    <h3><code>top [dimension] [source]</code></h3>
-    <p>Inspects top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>method</code>, <code>host</code>, <code>bandwidth</code>). Supports <code>-b, --by &lt;dim&gt;</code> flag.</p>
+    <h3><code>top [dimension] [source] [flags]</code></h3>
+    <p>Inspects top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>method</code>, <code>host</code>, <code>bandwidth</code>). Supports <code>-b, --by &lt;dim&gt;</code> flag and filters like <code>--5xx</code>, <code>--slow</code>, <code>--no-bots</code>.</p>
 
     <h3><code>diff &lt;log1&gt; &lt;log2&gt;</code></h3>
     <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments.</p>

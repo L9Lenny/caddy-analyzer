@@ -128,8 +128,17 @@ caddy-analyze
 # Enable threat detection engine
 caddy-analyze --detect
 
+# Filter by IP or CIDR subnet (shows color-coded log listing)
+caddy-analyze --ip 10.0.0.0/8
+
+# Filter errors excluding bots
+caddy-analyze --5xx --no-bots
+
 # Stream colorized logs in real time from Docker
 caddy-analyze tail docker://my-caddy
+
+# Tail with filters
+caddy-analyze tail --ip 192.168.1.100 --no-bots
 
 # Inspect top client IP addresses
 caddy-analyze top ip

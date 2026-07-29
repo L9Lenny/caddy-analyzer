@@ -108,6 +108,13 @@
     <p>Enable the security detection engine using the <code>--detect</code> / <code>-d</code> flag:</p>
     <pre>caddy-analyze --detect /var/log/caddy/access.log</pre>
 
+    <h3>Per-IP Suspicious Request Details</h3>
+    <p>The security report shows the actual suspicious requests per offending IP, including detection type, description, HTTP method, and path:</p>
+    <pre>  - 192.168.1.100     15 malicious requests
+       [sql_injection] SQL injection attempt GET /search?id=1' OR '1'='1
+       [scanner] Scanner / automated tool detected GET /admin</pre>
+    <p>This information is available in all output formats (table, JSON, CSV, HTML).</p>
+
     <h2>2. URL Unescaping & Evasion Prevention</h2>
     <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks.</p>
 
