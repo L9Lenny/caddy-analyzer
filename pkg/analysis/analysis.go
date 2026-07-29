@@ -1,6 +1,8 @@
 package analysis
 
 import (
+	"fmt"
+	"net/netip"
 	"sort"
 	"strings"
 
@@ -33,6 +35,10 @@ func (e *Engine) Process(entry *types.LogEntry) {
 	if e.detector != nil {
 		if det := e.detector.Detect(entry); det != nil {
 			e.stats.SuspiciousIPs[entry.RemoteIP]++
+			detail := fmt.Sprintf("[%s] %s %s → %s", det.Type, det.Desc, entry.Method, entry.Path())
+			if len(e.stats.SuspiciousDetails[entry.RemoteIP]) < 10 {
+				e.stats.SuspiciousDetails[entry.RemoteIP] = append(e.stats.SuspiciousDetails[entry.RemoteIP], detail)
+			}
 		}
 	}
 
@@ -171,80 +177,7 @@ func TopNInt(m map[int]int64, n int) []types.CountIntItem {
 }
 
 func (e *Engine) match(entry *types.LogEntry) bool {
-	f := e.filters
-
-	if f.HasFrom && entry.Timestamp.Before(f.From) {
-		return false
-	}
-	if f.HasTo && entry.Timestamp.After(f.To) {
-		return false
-	}
-	if len(f.Status) > 0 {
-		found := false
-		for _, s := range f.Status {
-			if entry.Status == s {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	if f.Method != "" && !strings.EqualFold(entry.Method, f.Method) {
-		return false
-	}
-	if f.PathGlob != "" && !matchGlob(f.PathGlob, entry.Path()) {
-		return false
-	}
-	if f.Host != "" && !strings.Contains(entry.Host, f.Host) {
-		return false
-	}
-	if f.MinLatency > 0 && entry.Duration < f.MinLatency {
-		return false
-	}
-	if f.MaxLatency > 0 && entry.Duration > f.MaxLatency {
-		return false
-	}
-	if f.MinSize > 0 && entry.Size < f.MinSize {
-		return false
-	}
-	if f.MaxSize > 0 && entry.Size > f.MaxSize {
-		return false
-	}
-	if f.Only2xx && (entry.Status < 200 || entry.Status >= 300) {
-		return false
-	}
-	if f.Only3xx && (entry.Status < 300 || entry.Status >= 400) {
-		return false
-	}
-	if f.Only4xx && (entry.Status < 400 || entry.Status >= 500) {
-		return false
-	}
-	if f.Only5xx && entry.Status < 500 {
-		return false
-	}
-	if f.ErrorsOnly && entry.Status < 500 {
-		return false
-	}
-	if f.NoBots && entry.IsBot {
-		return false
-	}
-	if f.BotsOnly && !entry.IsBot {
-		return false
-	}
-	if f.ExcludeIP != "" && entry.RemoteIP == f.ExcludeIP {
-		return false
-	}
-	if f.GrepPattern != "" {
-		pat := strings.ToLower(f.GrepPattern)
-		target := strings.ToLower(entry.URI + " " + entry.UserAgent + " " + entry.RemoteIP + " " + entry.Host)
-		if !strings.Contains(target, pat) {
-			return false
-		}
-	}
-
-	return true
+	return MatchEntry(entry, e.filters)
 }
 
 type DiffResult struct {
@@ -309,6 +242,101 @@ func CompareStats(baseEngine, currEngine *Engine) DiffResult {
 		AvgDurDelta:     cAvgDur - bAvgDur,
 		NewErrorPaths:   newErrPaths,
 	}
+}
+
+func MatchEntry(entry *types.LogEntry, filters types.Filters) bool {
+	if filters.HasFrom && entry.Timestamp.Before(filters.From) {
+		return false
+	}
+	if filters.HasTo && entry.Timestamp.After(filters.To) {
+		return false
+	}
+	if len(filters.Status) > 0 {
+		found := false
+		for _, s := range filters.Status {
+			if entry.Status == s {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if filters.Method != "" && !strings.EqualFold(entry.Method, filters.Method) {
+		return false
+	}
+	if filters.PathGlob != "" && !matchGlob(filters.PathGlob, entry.Path()) {
+		return false
+	}
+	if filters.Host != "" && !strings.Contains(entry.Host, filters.Host) {
+		return false
+	}
+	if filters.MinLatency > 0 && entry.Duration < filters.MinLatency {
+		return false
+	}
+	if filters.MaxLatency > 0 && entry.Duration > filters.MaxLatency {
+		return false
+	}
+	if filters.MinSize > 0 && entry.Size < filters.MinSize {
+		return false
+	}
+	if filters.MaxSize > 0 && entry.Size > filters.MaxSize {
+		return false
+	}
+	if filters.Only2xx && (entry.Status < 200 || entry.Status >= 300) {
+		return false
+	}
+	if filters.Only3xx && (entry.Status < 300 || entry.Status >= 400) {
+		return false
+	}
+	if filters.Only4xx && (entry.Status < 400 || entry.Status >= 500) {
+		return false
+	}
+	if filters.Only5xx && entry.Status < 500 {
+		return false
+	}
+	if filters.ErrorsOnly && entry.Status < 500 {
+		return false
+	}
+	if filters.NoBots && entry.IsBot {
+		return false
+	}
+	if filters.BotsOnly && !entry.IsBot {
+		return false
+	}
+	if filters.RemoteIP != "" && !ipMatch(filters.RemoteIP, entry.RemoteIP) {
+		return false
+	}
+	if filters.ExcludeIP != "" && ipMatch(filters.ExcludeIP, entry.RemoteIP) {
+		return false
+	}
+	if filters.GrepPattern != "" {
+		pat := strings.ToLower(filters.GrepPattern)
+		target := strings.ToLower(entry.URI + " " + entry.UserAgent + " " + entry.RemoteIP + " " + entry.Host)
+		if !strings.Contains(target, pat) {
+			return false
+		}
+	}
+	return true
+}
+
+func ipMatch(pattern, ip string) bool {
+	if pattern == "" || ip == "" {
+		return pattern == ip
+	}
+	if strings.Contains(pattern, "/") {
+		prefix, err := netip.ParsePrefix(pattern)
+		if err != nil {
+			return false
+		}
+		addr, err := netip.ParseAddr(ip)
+		if err != nil {
+			return false
+		}
+		return prefix.Contains(addr)
+	}
+	return pattern == ip
 }
 
 func matchGlob(pattern, s string) bool {

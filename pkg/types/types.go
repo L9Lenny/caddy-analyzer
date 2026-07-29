@@ -120,7 +120,8 @@ type Stats struct {
 	Status4xx        int64
 	Status5xx        int64
 
-	SuspiciousIPs map[string]int64
+	SuspiciousIPs    map[string]int64
+	SuspiciousDetails map[string][]string
 
 	durations []float64
 }
@@ -170,7 +171,8 @@ func NewStats() *Stats {
 		RefererCounts:    make(map[string]int64),
 		PathBytesMap:     make(map[string]int64),
 		IPBytesMap:       make(map[string]int64),
-		SuspiciousIPs:    make(map[string]int64),
+		SuspiciousIPs:     make(map[string]int64),
+		SuspiciousDetails: make(map[string][]string),
 		MinDuration:      1<<63 - 1,
 		durations:        make([]float64, 0, 10000),
 	}
