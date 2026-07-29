@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adapted from the Go gopher by Renee French (CC-BY 4.0).
-     Original SVG by Takuya Ueda (CC-BY 3.0).
-     Modified for caddy-analyzer: terminal screen + security shield added. -->
+<!-- Go gopher by Renee French (CC-BY 4.0). SVG by Takuya Ueda (CC-BY 3.0). -->
 <svg version="1.1" id="Gopher" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 280 300" enable-background="new 0 0 280 300" xml:space="preserve">
-
-<!-- ===== ORIGINAL GOPHER (shifted up to make room for terminal) ===== -->
-<g transform="translate(32, -10)">
+	 viewBox="0 0 215.6 281.6" enable-background="new 0 0 215.6 281.6" xml:space="preserve">
+<g>
 	<path fill="#8CC5E7" d="M207.3,44.6c-6.7-13.7-22.9-1.6-27-5.9c-21-21.6-46.4-27-66.3-28c0,0-9,0-11,0c-20,0.5-45.4,6.3-66.3,28
 		c-4.1,4.3-20.4-7.8-27,5.9c-7.7,16,15.7,17.6,14.5,24.7c-2.3,12.8-0.8,31.8,1,50.5C28,151.5,4.3,227.4,53.6,257.9
 		c9.3,5.8,34.4,9,56.2,9.5l0,0c0,0,0.1,0,0.1,0c0,0,0.1,0,0.1,0l0,0c21.8-0.5,43.9-3.7,53.2-9.5c49.4-30.5,25.7-106.4,28.6-138.1
@@ -34,33 +30,4 @@
 	<path fill="#3C89BF" d="M188.6,47c-0.6,2.1,2.1,1.8,3.1,8.3c0.4,2.4,9-3.5,5.5-7.8C194.3,43.9,189.1,44.9,188.6,47z"/>
 	<path fill="#3C89BF" d="M28.3,47c0.6,2.1-2.1,1.8-3.1,8.3c-0.4,2.4-9-3.5-5.5-7.8C22.5,43.9,27.7,44.9,28.3,47z"/>
 </g>
-
-<!-- ===== SECURITY SHIELD BADGE (on chest) ===== -->
-<g transform="translate(118, 175)">
-	<path d="M0,0 L22,8 L22,30 L11,40 L0,30 Z" fill="#0d1117" stroke="#3fb950" stroke-width="2"/>
-	<text x="11" y="25" font-family="monospace" font-size="14" fill="#3fb950" text-anchor="middle" font-weight="bold">✓</text>
-</g>
-
-<!-- ===== TERMINAL SCREEN (in front of gopher, bottom) ===== -->
-<g transform="translate(35, 215)">
-	<!-- Terminal body -->
-	<rect x="0" y="0" width="210" height="75" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
-	<!-- Title bar -->
-	<path d="M0,8 Q0,0 8,0 L202,0 Q210,0 210,8 L210,20 L0,20 Z" fill="#161b22"/>
-	<circle cx="12" cy="10" r="3.5" fill="#ff5f56"/>
-	<circle cx="24" cy="10" r="3.5" fill="#ffbd2e"/>
-	<circle cx="36" cy="10" r="3.5" fill="#27c93f"/>
-	<text x="105" y="14" font-family="monospace" font-size="9" fill="#6a737d" text-anchor="middle">caddy-analyzer</text>
-
-	<!-- Output lines -->
-	<text x="10" y="36" font-family="monospace" font-size="9" fill="#58a6ff">~/logs</text>
-	<text x="10" y="50" font-family="monospace" font-size="9" fill="#3fb950">$ caddy-analyze --detect</text>
-	<text x="10" y="64" font-family="monospace" font-size="8" fill="#f85149">3 threats blocked ✓</text>
-
-	<!-- Blinking cursor -->
-	<rect x="120" y="56" width="6" height="10" fill="#3fb950">
-		<animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
-	</rect>
-</g>
-
 </svg>
