@@ -68,6 +68,17 @@ Subcommands:
   top <dimension>        Quick top-N metric inspector (path, ip, ua, status, bandwidth)
   diff <log1> <log2>     Compare two log files for RPS shifts, 5xx spikes, and latency changes
 
+Filtering (activate colored log listing instead of report):
+  --ip <ip/CIDR>         Filter by client IP or subnet
+  -s, --status <codes>   Filter by HTTP status code(s)
+  -m, --method <verb>    Filter by HTTP method
+  -p, --path <glob>      Filter by request path (glob pattern)
+  --slow <duration>      Filter requests slower than duration
+  --2xx..--5xx           Filter by status class
+  -e, --errors-only      Filter server errors only
+  --no-bots / --bots-only Filter by traffic type
+  -g, --grep <pattern>   Search across URI, User-Agent, IP
+
 Config (auto-detected):
   ./caddy-analyzer.json        Local config
   ~/.config/caddy-analyzer/config.json  Global config
@@ -75,10 +86,10 @@ Config (auto-detected):
 Examples:
   caddy-analyze /var/log/caddy/access.log
   caddy-analyze --detect /var/log/caddy/access.log
-  caddy-analyze --slow 500ms /var/log/caddy/access.log
-  caddy-analyze --5xx --no-bots /var/log/caddy/access.log
-  caddy-analyze tail docker://my-caddy
-  caddy-analyze top path /var/log/caddy/access.log
+  caddy-analyze --ip 10.0.0.0/8 access.log
+  caddy-analyze --5xx --no-bots access.log
+  caddy-analyze tail --ip 192.168.1.100 docker://caddy
+  caddy-analyze top ip --5xx -t 20 access.log
   caddy-analyze diff base.log current.log
 `,
 	RunE: runAnalysis,
@@ -120,7 +131,7 @@ func init() {
 	flags.BoolVarP(&flagCompact, "compact", "c", false, "Compact output mode")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
-	rootCmd.Version = "0.1.1"
+	rootCmd.Version = "0.1.2"
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	addHiddenCompletionCmd()
 }
@@ -185,6 +196,8 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 	}
 	sections := types.DefaultTopSections()
 	var parseErrors, processed int64
+	var entries []*types.LogEntry
+	showListing := output.HasEntryFilters(filters) && flagFormat == "table" && flagOutput == "" && !flagDetect
 
 	for _, src := range sources {
 		r := reader.FromSource(src)
@@ -202,8 +215,14 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 			if entry == nil {
 				continue
 			}
+			if !analysis.MatchEntry(entry, filters) {
+				continue
+			}
 			engine.Process(entry)
 			processed++
+			if showListing {
+				entries = append(entries, entry)
+			}
 		}
 	}
 
@@ -212,10 +231,17 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 		return nil
 	}
 
+	if showListing {
+		fmt.Fprintf(os.Stderr, "%d entries matched\n\n", len(entries))
+		output.PrintLogEntries(entries, os.Stdout)
+		return nil
+	}
+
 	engine.Stats().ParseErrors = parseErrors
 	engine.Finalize()
 	report := output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections)
 	report.SetDetect(flagDetect)
+	report.SetFilters(filters)
 	if flagOutput != "" {
 		f, err := os.Create(flagOutput)
 		if err != nil {
@@ -253,6 +279,7 @@ func runFollowMode(ctx context.Context, sources []types.LogSource, filters types
 				engine.Finalize()
 				report := output.NewReportWithSections(engine, output.ParseFormat(flagFormat), flagTop, sections)
 				report.SetDetect(flagDetect)
+				report.SetFilters(filters)
 				report.Print()
 				last = time.Now()
 			}
@@ -271,6 +298,7 @@ func runIntervalMode(ctx context.Context, sources []types.LogSource, filters typ
 		fmt.Printf("\n--- %s ---\n", t.Format(time.RFC3339))
 		report := output.NewReportWithSections(e, output.ParseFormat(flagFormat), flagTop, sections)
 		report.SetDetect(flagDetect)
+		report.SetFilters(filters)
 		report.Print()
 	}
 
