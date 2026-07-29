@@ -26,6 +26,10 @@
 
 </div>
 
+## 🎥 Demo
+
+[![asciicast](https://asciinema.org/a/xXWhxJ9qaGVOCxpg.svg)](https://asciinema.org/a/xXWhxJ9qaGVOCxpg)
+
 ---
 
 ## ✨ Features
