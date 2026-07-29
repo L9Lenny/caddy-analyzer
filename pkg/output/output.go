@@ -36,6 +36,14 @@ var (
 	styleSuspect = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
 	styleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	styleBar     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+
+	styleList2xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+	styleList3xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
+	styleList4xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true)
+	styleList5xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	styleListDim  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleListIP   = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
+	styleListPath = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
 )
 
 func ParseFormat(s string) Format {
@@ -58,6 +66,7 @@ type Report struct {
 	sections types.TopSections
 	writer   io.Writer
 	detect   bool
+	filters  types.Filters
 }
 
 func NewReport(engine *analysis.Engine, format Format, top int) *Report {
@@ -86,6 +95,70 @@ func (r *Report) SetWriter(w io.Writer) {
 
 func (r *Report) SetDetect(d bool) {
 	r.detect = d
+}
+
+func (r *Report) SetFilters(f types.Filters) {
+	r.filters = f
+}
+
+func (r *Report) activeFilters() []string {
+	var f []string
+	if r.filters.HasFrom {
+		f = append(f, "--from "+r.filters.From.Format(time.RFC3339))
+	}
+	if r.filters.HasTo {
+		f = append(f, "--to "+r.filters.To.Format(time.RFC3339))
+	}
+	if len(r.filters.Status) > 0 {
+		strs := make([]string, len(r.filters.Status))
+		for i, s := range r.filters.Status {
+			strs[i] = fmt.Sprintf("%d", s)
+		}
+		f = append(f, "--status "+strings.Join(strs, ","))
+	}
+	if r.filters.Method != "" {
+		f = append(f, "--method "+r.filters.Method)
+	}
+	if r.filters.PathGlob != "" {
+		f = append(f, "--path "+r.filters.PathGlob)
+	}
+	if r.filters.Host != "" {
+		f = append(f, "--host "+r.filters.Host)
+	}
+	if r.filters.RemoteIP != "" {
+		f = append(f, "--ip "+r.filters.RemoteIP)
+	}
+	if r.filters.ExcludeIP != "" {
+		f = append(f, "--exclude-ip "+r.filters.ExcludeIP)
+	}
+	if r.filters.Only2xx {
+		f = append(f, "--2xx")
+	}
+	if r.filters.Only3xx {
+		f = append(f, "--3xx")
+	}
+	if r.filters.Only4xx {
+		f = append(f, "--4xx")
+	}
+	if r.filters.Only5xx {
+		f = append(f, "--5xx")
+	}
+	if r.filters.ErrorsOnly {
+		f = append(f, "--errors-only")
+	}
+	if r.filters.NoBots {
+		f = append(f, "--no-bots")
+	}
+	if r.filters.BotsOnly {
+		f = append(f, "--bots-only")
+	}
+	if r.filters.MinLatency > 0 {
+		f = append(f, "--slow "+fmt.Sprintf("%.0fms", r.filters.MinLatency*1000))
+	}
+	if r.filters.GrepPattern != "" {
+		f = append(f, "--grep "+r.filters.GrepPattern)
+	}
+	return f
 }
 
 func (r *Report) Print() {
@@ -117,6 +190,13 @@ func (r *Report) printTable() {
 	} else {
 		fmt.Fprintln(r.writer, "CADDY LOG ANALYSIS REPORT")
 		fmt.Fprintln(r.writer, strings.Repeat("=", 45))
+	}
+	if filters := r.activeFilters(); len(filters) > 0 {
+		if useColor {
+			fmt.Fprintf(r.writer, "%s %s\n", styleInfo.Render("Filters:"), strings.Join(filters, "  "))
+		} else {
+			fmt.Fprintf(r.writer, "Filters: %s\n", strings.Join(filters, "  "))
+		}
 	}
 	fmt.Fprintln(r.writer)
 
@@ -297,6 +377,15 @@ func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
 				ipLine = styleError.Render(ipLine)
 			}
 			fmt.Fprintf(w, "%s\n", ipLine)
+			if details, ok := s.SuspiciousDetails[item.Key]; ok && len(details) > 0 {
+				for _, d := range details {
+					detailLine := fmt.Sprintf("       %s", d)
+					if useColor {
+						detailLine = styleWarn.Render(detailLine)
+					}
+					fmt.Fprintf(w, "%s\n", detailLine)
+				}
+			}
 		}
 		fmt.Fprintf(w, "\nHint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n")
 	} else {
@@ -352,6 +441,7 @@ func (r *Report) printJSON() {
 			"start": s.StartTime,
 			"end":   s.EndTime,
 		},
+		"filters": r.activeFilters(),
 		"requests_per_second": r.engine.RPS(),
 		"status_codes": map[string]interface{}{
 			"2xx":     s.Status2xx,
@@ -382,6 +472,7 @@ func (r *Report) printJSON() {
 
 	if r.detect && len(s.SuspiciousIPs) > 0 {
 		data["suspicious_ips"] = analysis.TopN(s.SuspiciousIPs, 20)
+		data["suspicious_details"] = s.SuspiciousDetails
 	}
 
 	if r.top > 0 {
@@ -417,6 +508,9 @@ func (r *Report) printCSV() {
 	w := csv.NewWriter(r.writer)
 
 	w.Write([]string{"metric", "value"})
+	for _, fl := range r.activeFilters() {
+		w.Write([]string{"filter", fl})
+	}
 	w.Write([]string{"total_requests", fmt.Sprintf("%d", total)})
 	w.Write([]string{"rps", fmt.Sprintf("%.2f", r.engine.RPS())})
 	w.Write([]string{"avg_duration_seconds", fmt.Sprintf("%.6f", r.engine.AvgDuration())})
@@ -438,6 +532,11 @@ func (r *Report) printCSV() {
 		w.Write([]string{"suspicious_ips:ip", "count"})
 		for _, item := range analysis.TopN(s.SuspiciousIPs, 20) {
 			w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+			if details, ok := s.SuspiciousDetails[item.Key]; ok {
+				for _, d := range details {
+					w.Write([]string{item.Key + ":detail", d})
+				}
+			}
 		}
 	}
 
@@ -555,6 +654,55 @@ func printTop(w io.Writer, title string, items []types.CountItem) {
 		fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, item.Key, item.Count)
 	}
 	tw.Flush()
+}
+
+func listStatus(s int) string {
+	str := fmt.Sprintf("%d", s)
+	switch {
+	case s >= 200 && s < 300:
+		return styleList2xx.Render(str + " OK")
+	case s >= 300 && s < 400:
+		return styleList3xx.Render(str + " REDIR")
+	case s >= 400 && s < 500:
+		return styleList4xx.Render(str + " WARN")
+	case s >= 500:
+		return styleList5xx.Render(str + " ERR")
+	default:
+		return str
+	}
+}
+
+func FmtLogEntry(e *types.LogEntry) string {
+	timeStr := styleListDim.Render(e.Timestamp.Format("15:04:05"))
+	statusStr := listStatus(e.Status)
+	methodStr := lipgloss.NewStyle().Bold(true).Render(e.Method)
+	pathStr := styleListPath.Render(e.Path())
+	ipStr := styleListIP.Render(e.RemoteIP)
+
+	uaInfo := ""
+	if e.IsBot {
+		uaInfo = fmt.Sprintf(" [%s]", lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render("Bot "+e.BotName))
+	} else if e.Browser != "" || e.OS != "" {
+		uaInfo = fmt.Sprintf(" [%s/%s]", e.OS, e.Browser)
+	}
+
+	return fmt.Sprintf("%s  %s  %s %s  (%s, %s) - %s%s",
+		timeStr, statusStr, methodStr, pathStr, FormatBytes(e.Size), FormatDuration(e.Duration), ipStr, uaInfo)
+}
+
+func HasEntryFilters(f types.Filters) bool {
+	return len(f.Status) > 0 || f.Method != "" || f.PathGlob != "" || f.Host != "" ||
+		f.RemoteIP != "" || f.ExcludeIP != "" || f.Only2xx || f.Only3xx || f.Only4xx || f.Only5xx ||
+		f.ErrorsOnly || f.NoBots || f.BotsOnly || f.MinLatency > 0 || f.MaxLatency > 0 ||
+		f.GrepPattern != ""
+}
+
+func PrintLogEntries(entries []*types.LogEntry, w io.Writer) {
+	for _, e := range entries {
+		if e != nil {
+			fmt.Fprintln(w, FmtLogEntry(e))
+		}
+	}
 }
 
 func printTopInt(w io.Writer, title string, items []types.CountIntItem) {

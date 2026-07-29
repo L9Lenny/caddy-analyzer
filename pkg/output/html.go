@@ -24,7 +24,7 @@ func (r *Report) printHTML() {
 	suspicious := analysis.TopN(s.SuspiciousIPs, 20)
 
 	html := generateHTMLReport(s, total, r.engine.RPS(), r.engine.AvgDuration(),
-		topPaths, topIPs, topUAs, topMethods, topProtos, topTLS, topBots, topReferers, topPathBytes, suspicious, r.detect)
+		topPaths, topIPs, topUAs, topMethods, topProtos, topTLS, topBots, topReferers, topPathBytes, suspicious, r.detect, r.activeFilters(), s.SuspiciousDetails)
 
 	fmt.Fprint(r.writer, html)
 }
@@ -36,6 +36,8 @@ func generateHTMLReport(
 	avgDur float64,
 	topPaths, topIPs, topUAs, topMethods, topProtos, topTLS, topBots, topReferers, topPathBytes, suspicious []types.CountItem,
 	detect bool,
+	activeFilters []string,
+	suspiciousDetails map[string][]string,
 ) string {
 	errPct := float64(0)
 	if total > 0 {
@@ -213,6 +215,7 @@ func generateHTMLReport(
             <div class="meta">Period: %s — %s (%s)</div>
         </div>
     </header>
+    %s
 
     <div class="grid-stats">
         <div class="stat-card">
@@ -289,6 +292,7 @@ func generateHTMLReport(
 </body>
 </html>`,
 		formatTime(s.StartTime), formatTime(s.EndTime), durationStr,
+		renderActiveFiltersHTML(activeFilters),
 		total, rps, FormatDuration(avgDur), FormatBytes(s.TotalBytes),
 		cardClass(errPct), errPct, botPct,
 		renderTableRows(topPaths, total),
@@ -298,7 +302,7 @@ func generateHTMLReport(
 		s.Status4xx, pct(s.Status4xx, total),
 		s.Status5xx, pct(s.Status5xx, total),
 		renderMixedRows(topProtos, topTLS),
-		renderSecurityAlertsHTML(suspicious, detect),
+		renderSecurityAlertsHTML(suspicious, suspiciousDetails, detect),
 	)
 }
 
@@ -333,7 +337,7 @@ func renderMixedRows(protos, tls []types.CountItem) string {
 	return rows
 }
 
-func renderSecurityAlertsHTML(suspicious []types.CountItem, detect bool) string {
+func renderSecurityAlertsHTML(suspicious []types.CountItem, suspiciousDetails map[string][]string, detect bool) string {
 	if !detect {
 		return ""
 	}
@@ -342,9 +346,26 @@ func renderSecurityAlertsHTML(suspicious []types.CountItem, detect bool) string 
 	}
 	var alerts string
 	for _, item := range suspicious {
-		alerts += fmt.Sprintf(`<div class="alert-item">⚠ IP: %s — %d malicious requests triggered</div>`, escapeHTML(item.Key), item.Count)
+		alerts += fmt.Sprintf(`<div class="alert-item">⚠ IP: %s — %d malicious requests`, escapeHTML(item.Key), item.Count)
+		if details, ok := suspiciousDetails[item.Key]; ok && len(details) > 0 {
+			for _, d := range details {
+				alerts += fmt.Sprintf(`<br><span style="color:#d29922; font-size:0.8rem;">&nbsp;&nbsp;↳ %s</span>`, escapeHTML(d))
+			}
+		}
+		alerts += `</div>`
 	}
 	return fmt.Sprintf(`<div class="card" style="border-left: 3px solid #f85149;"><h2>🚨 Security & Threat Alerts (%d Suspicious IPs)</h2>%s<p style="color:#888888; font-size:0.8rem; margin-top:0.75rem; font-family:monospace;">💡 Action Hint: Run 'sudo caddy-analyze guard' to auto-block attack IPs via iptables.</p></div>`, len(suspicious), alerts)
+}
+
+func renderActiveFiltersHTML(filters []string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	var items string
+	for _, f := range filters {
+		items += fmt.Sprintf(`<span style="background:#222; color:#58a6ff; padding:2px 8px; border-radius:3px; font-size:0.8rem; font-family:monospace; margin-right:6px;">%s</span>`, escapeHTML(f))
+	}
+	return fmt.Sprintf(`<div style="margin-bottom:1rem;">%s</div>`, items)
 }
 
 func escapeHTML(s string) string {
