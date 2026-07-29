@@ -28,7 +28,7 @@
 
 ## 🎥 Demo
 
-[![asciicast](https://asciinema.org/a/xXWhxJ9qaGVOCxpg.svg)](https://asciinema.org/a/xXWhxJ9qaGVOCxpg)
+![](assets/demo.gif)
 
 ---
 
