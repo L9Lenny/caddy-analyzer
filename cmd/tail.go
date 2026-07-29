@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
 	"github.com/L9Lenny/caddy-analyzer/pkg/output"
 	"github.com/L9Lenny/caddy-analyzer/pkg/parser"
 	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
@@ -39,6 +40,11 @@ func init() {
 func runTail(cmd *cobra.Command, args []string) error {
 	sources := resolveSources(args)
 
+	filters, err := buildFilters()
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -59,6 +65,9 @@ func runTail(cmd *cobra.Command, args []string) error {
 		for line := range lines {
 			entry, err := parser.Parse(line)
 			if err != nil || entry == nil {
+				continue
+			}
+			if !analysis.MatchEntry(entry, filters) {
 				continue
 			}
 			printColorizedLog(entry)
