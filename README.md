@@ -4,6 +4,8 @@
   <img src="assets/mascot.svg" width="120" alt="caddy-analyzer mascot">
 </p>
 
+<p align="center"><sub>Gopher based on the <a href="https://blog.golang.org/gopher">Go gopher</a> by <a href="http://reneefrench.blogspot.com/">Renee French</a>, CC-BY 4.0. Modified for caddy-analyzer.</sub></p>
+
 ```
   ██████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗    █████╗ ███╗   ██╗██╗   ██╗██╗  ██╗███████╗███████╗██████╗ 
  ██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝   ██╔══██╗████╗  ██║██║   ██║██║  ██║╚══███╔╝██╔════╝██╔══██╗
