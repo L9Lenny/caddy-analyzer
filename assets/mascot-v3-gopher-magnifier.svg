@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Go gopher by Renee French (CC-BY 4.0). SVG by Takuya Ueda (CC-BY 3.0). Modified: added log file + magnifying glass. -->
+<!-- Go gopher by Renee French (CC-BY 4.0). SVG by Takuya Ueda (CC-BY 3.0). Modified: added magnifying glass. -->
 <svg version="1.1" id="Gopher" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 260 320" enable-background="new 0 0 260 320" xml:space="preserve">
+	 viewBox="0 0 240 300" enable-background="new 0 0 240 300" xml:space="preserve">
 
-<!-- ===== GOPHER (shifted right to make room for log on left) ===== -->
-<g transform="translate(40, 0)">
+<!-- ===== GOPHER ===== -->
+<g transform="translate(12, 0)">
 	<path fill="#8CC5E7" d="M207.3,44.6c-6.7-13.7-22.9-1.6-27-5.9c-21-21.6-46.4-27-66.3-28c0,0-9,0-11,0c-20,0.5-45.4,6.3-66.3,28
 		c-4.1,4.3-20.4-7.8-27,5.9c-7.7,16,15.7,17.6,14.5,24.7c-2.3,12.8-0.8,31.8,1,50.5C28,151.5,4.3,227.4,53.6,257.9
 		c9.3,5.8,34.4,9,56.2,9.5l0,0c0,0,0.1,0,0.1,0c0,0,0.1,0,0.1,0l0,0c21.8-0.5,43.9-3.7,53.2-9.5c49.4-30.5,25.7-106.4,28.6-138.1
@@ -33,28 +33,11 @@
 	<path fill="#3C89BF" d="M28.3,47c0.6,2.1-2.1,1.8-3.1,8.3c-0.4,2.4-9-3.5-5.5-7.8C22.5,43.9,27.7,44.9,28.3,47z"/>
 </g>
 
-<!-- ===== LOG FILE (below gopher, left side) ===== -->
-<g transform="translate(10, 230)">
-	<!-- Paper body -->
-	<path d="M0,0 L70,0 L90,20 L90,85 L0,85 Z" fill="#f8f8f8" stroke="#c0c0c0" stroke-width="1.5"/>
-	<!-- Folded corner -->
-	<path d="M70,0 L90,20 L70,20 Z" fill="#d0d0d0" stroke="#c0c0c0" stroke-width="1.5"/>
-	<!-- Log lines -->
-	<line x1="12" y1="30" x2="76" y2="30" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-	<line x1="12" y1="42" x2="68" y2="42" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-	<line x1="12" y1="54" x2="78" y2="54" stroke="#d44" stroke-width="2" stroke-linecap="round"/>
-	<line x1="12" y1="66" x2="60" y2="66" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-	<line x1="12" y1="76" x2="72" y2="76" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-</g>
-
-<!-- ===== MAGNIFYING GLASS (over the log, held by gopher's right hand) ===== -->
-<g transform="translate(75, 250)">
-	<!-- Glass handle -->
-	<line x1="28" y1="28" x2="48" y2="48" stroke="#8B6F47" stroke-width="6" stroke-linecap="round"/>
-	<!-- Glass rim -->
-	<circle cx="20" cy="20" r="22" fill="rgba(255,255,255,0.15)" stroke="#555" stroke-width="4"/>
-	<!-- Glass shine -->
-	<path d="M10,10 Q6,18 10,26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+<!-- ===== MAGNIFYING GLASS (bottom right, near gopher's hand) ===== -->
+<g transform="translate(170, 210)">
+	<line x1="28" y1="28" x2="52" y2="52" stroke="#8B6F47" stroke-width="7" stroke-linecap="round"/>
+	<circle cx="20" cy="20" r="26" fill="rgba(140,197,231,0.1)" stroke="#555" stroke-width="4"/>
+	<path d="M8,8 Q3,18 8,30" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
 </g>
 
 </svg>
