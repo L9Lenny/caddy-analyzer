@@ -94,7 +94,7 @@ caddy-analyze --watch
 | Area | Capability |
 |---|---|
 | **Parsing** | Native Caddy v2 structured JSON — no regex, no config required |
-| **Security** | 15 attack categories: SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL introspection, path traversal/LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive files, WordPress/CGI probes, admin probes, scanner tools |
+| **Security** | 22 attack categories: SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, path traversal/LFI, LFI wrapper abuse, GraphQL introspection, Log4j/JNDI, XXE/XInclude, open redirect, LDAP injection, XPath injection, CRLF injection, prototype pollution, SSI injection, sensitive file probes, WordPress probes, CGI probes, admin probes, scanner tools |
 | **Detection Accuracy** | Dual-pass engine: URL-unescaped + raw URI matching catches multibyte-encoded and double-encoded bypass attempts |
 | **Firewall** | `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds and ban duration |
 | **Traffic Analysis** | Classifies human users vs crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers |
@@ -172,22 +172,29 @@ Scans every request against a dual-pass pattern engine — the first pass matche
 ```
 
 | Category | Detected Patterns |
-|---|---|
-| SQL Injection | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, `exec xp_` |
-| NoSQL Injection | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne`, `%24gt`, `%24regex` |
-| XSS | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, `prompt(` |
-| SSTI | `{{...}}`, `${...}`, `<% %>`, `#{...}`, `__class__`, `freemarker`, `nunjucks` |
-| SSRF | `169.254.169.254`, `metadata.google.internal`, `gopher://`, `dict://`, `0x7f000001` |
-| RCE | `/bin/sh`, `powershell`, `whoami`, `sleep`, `ping`, `/dev/tcp/`, `nslookup` |
-| Path Traversal / LFI | `../`, `%00..`, `/etc/passwd`, `/etc/shadow`, `php://filter`, `file:///` |
-| LFI Wrapper Abuse | `phar://`, `zip://`, `data://`, `expect://`, `compress.zlib`, `php://input` |
-| GraphQL Introspection | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
-| Log4j / JNDI | `${jndi:`, `class.module.classLoader`, `${lower:jndi`, `${${::-j}}` |
-| Sensitive File Probes | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.gitignore`, `composer.json` |
-| Admin Probes | `/phpmyadmin`, `/actuator/`, `/console/`, `/h2-console`, `/heapdump`, `/jolokia` |
-| WordPress Probes | `/wp-content/plugins/`, `/wp-json/wp/v2/`, `/xmlrpc.php`, `/wp-includes/` |
-| CGI Probes | `/cgi-bin/` |
-| Scanner Tools | `sqlmap`, `nikto`, `gobuster`, `nuclei`, `httpx`, `ffuf`, `katana`, `dalfox`, `xsstrike` |
+|---|---|---|
+| **SQL Injection** | `UNION SELECT`, `OR 1=1`, `DROP TABLE`, `INFORMATION_SCHEMA`, `pg_sleep`, `WAITFOR DELAY`, `BENCHMARK()`, `xp_cmdshell`, `INTO OUTFILE`, `CONVERT(`, `HAVING n`, `ORDER BY n`, `@@version`, `CHAR()`, `ASCII()`, `EXEC sp_` |
+| **NoSQL Injection** | `$ne`, `$gt`, `$regex`, `$where`, `$exists`, `$nin`, `$in`, `$elemMatch`, `$mod`, URL-encoded variants `%24ne`, `%24gt`, `%24regex`, JavaScript eval injection |
+| **XSS** | Tag injection (`<script`, `<img`, `<iframe`, `<svg/onload`, `<details/on`, `<body`, `<input`, `<marquee`, `<embed`), event handlers (`onerror=`, `onload=`, `onfocus=`, `onmouseover=`, `onclick=`, `onsubmit=`, `onkeydown=`, `onpointer*=`, `ontoggle=`, `onwheel=`), protocol handlers (`javascript:`, `vbscript:`, `data:text/html`), dangerous JS (`alert()`, `prompt()`, `setTimeout()`, `Function()`, `execScript()`), DOM access (`document.cookie`, `document.location`, `window.location`, `.innerHTML`, `.outerHTML`), CSS expression (`expression(`, `-moz-binding`, `@import url`), SVG/XML, encoded payloads (`%3C`, `%3E`, `&#x3C`, `&lt;`) |
+| **SSTI** | Python MRO (`__class__`, `__mro__`, `__subclasses__`, `__builtins__`), template globals (`freemarker`, `nunjucks`, `lipsum`, `cycler`, `joiner`), OS command access (`os.popen`, `os.system`, `subprocess.Popen`), Java class access (`Runtime.getRuntime`, `ProcessBuilder`, `javax.script`), arithmetic probe (`{{7*7}}`, `${7*7}`, `#{7*7}`) |
+| **SSRF** | Cloud metadata (`169.254.169.254`, `metadata.google.internal`, `100.100.100.200`, `168.63.129.16`, `fd00:ec2::23`), loopback variants (`127.x.x.x`, `0x7f000001`, `2130706433`, `0177...`, `0.0.0.0`, `[::1]`), private IPs (`10.x.x.x`, `172.16-31.x.x`, `192.168.x.x`), protocol smuggling (`gopher://`, `dict://`, `ftp://`, `tftp://`, `ldap://`, `redis://`), metadata paths (`latest/meta-data`, `computeMetadata`) |
+| **RCE** | Shell paths (`/bin/sh`, `/bin/bash`, `/bin/zsh`) + command sub (`$(id)`, `` `id` ``), recon (`whoami`, `id`, `cat /etc`, `pwd`), reverse shell (`/dev/tcp/`, `/dev/udp/`, `nc -e`, `bash -i`), downloaders (`curl`, `wget`, `fetch`, `certutil -urlcache`, `bitsadmin /transfer`, `mshta`, `rundll32`), LOLBins (`wmic`, `regsvr32`, `schtasks`, `cscript`), Windows cmd (`powershell`, `pwsh`, `cmd.exe`), PHP functions (`eval()`, `system()`, `exec()`, `shell_exec()`, `popen()`, `proc_open()`, `assert()`, `create_function()`, `call_user_func()`, `preg_replace /e`), interpreters (`python -c`, `perl -e`, `ruby -e`, `php -r`, `node -e`), PHP file operations (`include()`, `require()`, `file_get_contents()`, `php://input`), deserialization gadgets (`O:n:...`, `__destruct`, `__wakeup`, `__toString`), Java RCE (`Runtime.getRuntime().exec`, `ProcessBuilder`, `Unsafe.defineClass`), Windows recon (`ipconfig`, `systeminfo`, `net user`, `net group`, `tasklist`, `vssadmin`) |
+| **Path Traversal / LFI** | Directory traversal (`../`, `..\\`, `..%2f`, `..%5c`, `%2e%2e%2f`), null byte (`..%00`, `%00..`), Unix system files (`/etc/passwd`, `/etc/shadow`, `/etc/hosts`, `/etc/crontab`, `/etc/ssh/*`), `/proc/` filesystem (`/proc/self/environ`, `/proc/self/fd`, `/proc/self/maps`, `/proc/self/mem`, `/proc/self/root`), Windows system files (`/windows/win.ini`, `/boot.ini`, `pagefile.sys`, `ntldr`), dotfiles (`/.ssh/`, `/.git/`), user home data (`/root/.bash_history`, `/home/*/.ssh/`), var/usr paths |
+| **LFI Wrapper Abuse** | `phar://`, `zip://`, `rar://`, `bz2://`, `zlib://`, `data://`, `expect://`, `php://input`, `php://filter`, `php://temp`, `php://memory`, `compress.zlib`, `compress.bzip2`, `convert.base64-encode`, `convert.iconv` |
+| **GraphQL Introspection** | `__schema`, `__type`, `__typename`, `__field`, `__directive`, `__enumValue`, `IntrospectionQuery`, operation discovery (`{__schema`, `{__type`, `query{..{`) |
+| **Log4j / JNDI** | JNDI lookups (`${jndi:ldap://`, `${jndi:rmi://`, `${jndi:dns://`), environment access (`${env:`, `${sys:`, `${java:`, `${spring:`, `${ctx:`), obfuscated (`${lower:jndi`, `${::-j}`, `${${::-j}}`, `%24{`), Docker/K8s (`${docker:`, `${k8s:`) |
+| **XXE / XML Injection** | Entity declarations (`<!DOCTYPE`, `<!ENTITY`, `<!ELEMENT`), external DTD/entity (`SYSTEM`, `PUBLIC`), parameter entity (`ENTITY % ... SYSTEM`), XInclude (`xi:include`, `xmlns:xi=`, `xpointer`), internal DTD entity |
+| **Sensitive File Probes** | Environment files (`.env`, `.env.local`, `.env.prod`), Git files (`/.git/config`, `/.git/HEAD`, `.gitignore`), SSH keys (`id_rsa`, `id_dsa`, `authorized_keys`), cloud credentials (`.aws/credentials`, `.azure/config`, `credentials.json`, `service-account.json`), htaccess (`.htaccess`, `.htpasswd`), Docker config (`docker-compose.yml`, `Dockerfile`), dependency files (`composer.json`, `package.json`, `go.mod`, `Gemfile`, `Pipfile`, `Cargo.toml`), app config (`config.php`, `database.php`, `settings.php`, `web.config`), database exports (`dump.sql`, `.sqlite`, `.ibd`, `.frm`), backup files (`.bak`, `.backup`, `.swp`, `.tar.gz`, `.zip`), log files (`access.log`, `error.log`, `laravel.log`), certificates (`.pem`, `.key`, `.crt`, `.p12`, `.jks`), file manager probes (`wp_filemanager.php`, `elfinder`, `ckfinder`), info pages (`phpinfo.php`, `info.php`, `test.php`), dev config (`.editorconfig`, `.prettierrc`, `webpack.config`, `vite.config`) |
+| **Admin Probes** | Database interfaces (`/phpmyadmin`, `/adminer`, `/pgadmin`), Spring Boot Actuator (`/actuator/env`, `/actuator/heapdump`, `/actuator/beans`), H2 console (`/h2-console`), heap dump (`/heapdump`, `/jvm.dump`), JMX/Jolokia (`/jolokia`, `/jmx-console`), admin panels (`/admin`, `/administrator`, `/dashboard`, `/manager`, `/backoffice`), API docs (`/swagger-ui`, `/api-docs`, `/openapi.json`), monitoring (`/grafana`, `/prometheus`, `/kibana`, `/nagios`, `/zabbix`), VCS metadata (`/.svn/`, `/.DS_Store`, `/WEB-INF/`), debug endpoints (`/debug`, `/api/debug`, `/test`), server info (`/server-status`, `/cgi-bin/phpinfo`, `/trace.axd`), credential paths (`/credentials`, `/secrets`, `/tokens`) |
+| **WordPress Probes** | Content directories (`/wp-content/plugins/`, `/wp-content/themes/`, `/wp-content/uploads/`), REST API (`/wp-json/wp/v2/`), core directories (`/wp-includes/`, `/wp-admin/js/`), XML-RPC (`/xmlrpc.php`), misc (`/wp-cron.php`, `/wp-signup.php`, `/wp-trackback.php`), popular plugin paths (`woocommerce`, `elementor`, `wordfence`, `akismet`, `yoast`, `jetpack`, `gravityforms`), backup dirs (`/wp-content/backup-`, `/wp-content/ai1wm-backups`), sensitive files (`/wp-content/debug.log`, `/wp-content/install.php`) |
+| **CGI Probes** | `/cgi-bin/`, `/cgi-sys/`, `/fcgi-bin/`, script extensions (`.cgi`, `.pl`, `.fcgi`) |
+| **Open Redirect** | URL parameter injection (`?url=http://`, `?redirect=https://`, `?next=//evil.com`, `?return=//`), protocol-relative URLs (`//evil.com`) |
+| **LDAP Injection** | Filter injection (`(&(`, `(|(`, `)(|(`, `)(&(`), URL-encoded variants (`%28%26%28`, `%28%7c%28`) |
+| **XPath Injection** | Path manipulation (`]|//*`, `.//*`) |
+| **CRLF / Log Injection** | Header injection (`%0d%0aContent-Length:`, `%0d%0aLocation:`, `%0d%0aSet-Cookie:`), literal CRLF (`\r\nHeader:`) |
+| **Prototype Pollution** | `__proto__`, `constructor.prototype`, `[constructor].prototype`, JSON payloads (`"__proto__":`, `"constructor":{"prototype"`) |
+| **SSI Injection** | Server-side include directives (`<!--#exec cmd=`, `<!--#include virtual=`, `<!--#echo var=`), short-form (`#exec cmd=`, `#include file=`, `#echo var=`) |
+| **Scanner Tools** | `sqlmap`, `nikto`, `gobuster`, `wpscan`, `nuclei`, `httpx`, `ffuf`, `katana`, `dalfox`, `xsstrike`, `commix`, `tplmap`, `nosqlmap`, `whatweb`, `joomscan`, `droopescan`, `acunetix`, `netsparker`, `arachni`, `masscan`, `hydra`, `medusa`, `openvas`, `nessus`, `metasploit`, `beef`, `shodan`, `censys`, `zgrab`, `zmap`, `rustscan`, `amass`, `subfinder`, `gau` |
 
 ---
 
