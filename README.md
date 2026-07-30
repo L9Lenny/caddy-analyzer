@@ -1,4 +1,9 @@
-![caddy-analyzer](assets/title.svg)
+<table>
+  <tr>
+    <td><img src="assets/mascot.svg" width="100" alt="caddy-analyzer mascot"></td>
+    <td><img src="assets/title.svg" alt="caddy-analyzer" height="80"></td>
+  </tr>
+</table>
 
 [![Go Version](https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go)](https://go.dev)
 [![Go Reference](https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg)](https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer)
@@ -155,10 +160,4 @@ Contributions, issues, and feature requests are welcome. See [CONTRIBUTING.md](C
 
 MIT License. See [LICENSE](LICENSE) for details.
 
----
-
-<p align="center">
-  <img src="assets/mascot.svg" width="80" alt="caddy-analyzer mascot">
-  <br>
-  <sub>Gopher created with <a href="https://gopherize.me">gopherize.me</a> &middot; Artwork by <a href="https://twitter.com/ashleymcnamara">Ashley McNamara</a>, inspired by <a href="http://reneefrench.blogspot.com/">Renee French</a></sub>
-</p>
+<sub>Gopher created with [gopherize.me](https://gopherize.me) — Artwork by [Ashley McNamara](https://twitter.com/ashleymcnamara), inspired by [Renee French](http://reneefrench.blogspot.com/)</sub>
