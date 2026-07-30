@@ -18,6 +18,47 @@
 
 ---
 
+## Security Detection Engine
+
+Scans every Caddy v2 request against **22 attack categories** using a dual-pass pattern engine — first on the URL-unescaped URI, second on the raw URI to catch multibyte and double-encoded bypass attempts. Suspicious requests are grouped by offending IP and surfaced in all output formats.
+
+| Category | Covers | Example Patterns |
+|---|---|---|
+| **SQL Injection** | SQLi probes, blind injection, DB fingerprinting | `UNION SELECT`, `OR 1=1`, `pg_sleep`, `INTO OUTFILE`, `@@version` |
+| **NoSQL Injection** | MongoDB operators, JS eval injection | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne` |
+| **XSS** | Reflected/stored/DOM XSS, event handlers, protocol JS | `<script`, `onerror=`, `onfocus=`, `alert(`, `document.cookie`, `data:text/html` |
+| **SSTI** | Server-side template injection (Jinja2, Freemarker, Twig, etc.) | `__class__`, `__mro__`, `freemarker`, `nunjucks`, `{{7*7}}`, `os.popen` |
+| **SSRF** | Cloud metadata, loopback/private IPs, protocol smuggling | `169.254.169.254`, `0x7f000001`, `gopher://`, `dict://`, `redis://` |
+| **RCE** | Shell injection, reverse shells, downloaders, LOLBins | `/bin/sh`, `whoami`, `/dev/tcp/`, `powershell`, `certutil`, `eval()` |
+| **Path Traversal / LFI** | Directory traversal, null byte, `/proc/` filesystem, Windows system files | `../`, `..%00`, `/etc/passwd`, `/proc/self/*`, `php://input` |
+| **GraphQL Introspection** | Schema discovery queries | `__schema`, `__type`, `IntrospectionQuery` |
+| **Log4j / JNDI** | Log4Shell, JNDI lookups, env/sys access, obfuscated variants | `${jndi:ldap://`, `${env:`, `${lower:jndi`, `${::-j}` |
+| **XXE / XInclude** | XML entity expansion, external DTD, XInclude | `<!ENTITY`, `SYSTEM`, `PUBLIC`, `xi:include`, `xpointer` |
+| **Open Redirect** | URL parameter injection, protocol-relative URLs | `?url=http://`, `?redirect=//`, `//evil.com` |
+| **LDAP Injection** | LDAP filter manipulation | `(&(`, `(|(`, `)(|(`, URL-encoded operators |
+| **XPath Injection** | XPath query manipulation | `]\|//*`, `.//*` |
+| **CRLF / Log Injection** | HTTP response header injection, log poisoning | `%0d%0aSet-Cookie:`, `%0d%0aLocation:`, literal CRLF |
+| **Prototype Pollution** | JS prototype chain tampering | `__proto__`, `constructor.prototype`, JSON payloads |
+| **SSI Injection** | Server-side include directive injection | `<!--#exec cmd=`, `#include virtual=`, `#echo var=` |
+| **LFI Wrapper Abuse** | PHP stream wrappers for file read/execution | `phar://`, `data://`, `expect://`, `compress.zlib` |
+| **Sensitive File Probes** | Credentials, backups, configs, source code, git exposure | `.env`, `.git/config`, `id_rsa`, `dump.sql`, `phpinfo.php` |
+| **Admin Probes** | DB admin panels, Spring Actuator, heapdumps, API docs, VCS metadata | `/phpmyadmin`, `/actuator/*`, `/h2-console`, `/swagger-ui` |
+| **WordPress Probes** | Plugin scanning, XML-RPC, rest API, backup directories | `/wp-content/plugins/`, `/xmlrpc.php`, `/wp-json/wp/v2/` |
+| **CGI Probes** | Legacy CGI script discovery | `/cgi-bin/`, `.cgi`, `.fcgi` |
+| **Scanner Tools** | 30+ scanner/user-agent signatures, automated tooling | `sqlmap`, `nuclei`, `gobuster`, `ffuf`, `wpscan`, `masscan`, `hydra`, `metasploit`, `shodan` |
+
+Output example:
+
+```
+  - 192.168.1.100     15 malicious requests
+       [sql_injection] SQL injection attempt GET /search?id=1' OR '1'='1
+       [scanner] Scanner / automated tool detected GET /admin
+```
+
+> **Guard mode** (`caddy-analyze guard`) extends detection with automatic `iptables` banning — blocks offending IPs at the firewall on configurable thresholds.
+
+---
+
 ## Why caddy-analyzer?
 
 Caddy v2 uses a **structured JSON log format** that differs from the Common/Combined Log Format used by Apache, Nginx, and most log analysis tools. Generic tools like `goaccess`, `lnav`, or `grep`/`awk` pipelines cannot parse Caddy's nested schema out of the box.
@@ -25,14 +66,14 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 | Capability | caddy-analyzer | goaccess | lnav | grep/awk |
 |---|---|---|---|---|
 | Caddy v2 JSON native | ✅ | ❌ | ❌ | ❌ |
-| Security threat detection (15 categories) | ✅ | ❌ | ❌ | ❌ |
+| Security threat detection (22 categories) | ✅ | ❌ | ❌ | ❌ |
+| Dual-pass evasion-resistant detection | ✅ | ❌ | ❌ | ❌ |
 | Real-time firewall guard (iptables) | ✅ | ❌ | ❌ | ❌ |
 | Per-IP suspicious request details | ✅ | ❌ | ❌ | ❌ |
 | Comparative diff engine (RPS, 5xx, latency) | ✅ | ❌ | ❌ | ❌ |
 | TUI dashboard with live streaming | ✅ | ✅ | ✅ | ❌ |
 | Standalone HTML reports | ✅ | ✅ | ❌ | ❌ |
 | Multi-source (Docker, K8s, journalctl) | ✅ | ❌ | ✅ | ❌ |
-| URL-unescape + raw URI dual-pass detection | ✅ | ❌ | ❌ | ❌ |
 | CIDR filtering | ✅ | ❌ | ❌ | ❌ |
 | Traffic classifier (crawler vs human) | ✅ | ❌ | ❌ | ❌ |
 
@@ -41,24 +82,6 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 ## Demo
 
 ![](assets/demo.gif)
-
----
-
-## Installation
-
-```bash
-# Linux / macOS
-curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
-
-# Windows (PowerShell)
-iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex
-
-# Go toolchain
-go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest
-
-# Docker
-docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log
-```
 
 ---
 
@@ -103,6 +126,24 @@ caddy-analyze --watch
 | **HTML Reports** | Standalone dark-mode single-file HTML reports for sharing with your team |
 | **Data Sources** | Local files, stdin, Docker (`docker://`), Kubernetes (`k8s://`), systemd journalctl (`journalctl://`) |
 | **Filtering** | Entry-level filters auto-switch to color-coded log listings. Supports CIDR, status classes, methods, path globs |
+
+---
+
+## Installation
+
+```bash
+# Linux / macOS
+curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
+
+# Windows (PowerShell)
+iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex
+
+# Go toolchain
+go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest
+
+# Docker
+docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log
+```
 
 ---
 
@@ -158,43 +199,6 @@ Subcommands:
 | `--compact` | `-c` | `false` | Compact output mode |
 | `--namespace` | `-n` | `""` | Kubernetes pod namespace |
 </details>
-
----
-
-## Security Detection Engine
-
-Scans every request against a dual-pass pattern engine — the first pass matches against the URL-unescaped URI, the second against the raw URI. Suspicious requests are grouped by offending IP and displayed in all output formats.
-
-```
-  - 192.168.1.100     15 malicious requests
-       [sql_injection] SQL injection attempt GET /search?id=1' OR '1'='1
-       [scanner] Scanner / automated tool detected GET /admin
-```
-
-| Category | Example Patterns |
-|---|---|
-| SQL Injection | `UNION SELECT`, `OR 1=1`, `pg_sleep`, `WAITFOR DELAY`, `xp_cmdshell`, `INTO OUTFILE`, `@@version` |
-| NoSQL Injection | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `$in`, `$mod`, `%24ne` |
-| XSS | `<script`, event handlers (`onerror=`, `onfocus=`, `onpointer*=`), `javascript:`, `alert(`, `document.cookie`, `expression(` |
-| SSTI | `__class__`, `__mro__`, `freemarker`, `nunjucks`, `os.popen`, `Runtime.getRuntime`, `{{7*7}}` |
-| SSRF | Cloud metadata IPs, loopback variants, private IPs, `gopher://`, `dict://`, `redis://` |
-| RCE | Shell paths, reverse shell, `certutil`, `mshta`, `powershell`, `eval()`, `python -c`, deserialization gadgets |
-| Path Traversal / LFI | `../`, `..%00`, `/etc/passwd`, `/proc/self/*`, `/windows/win.ini` |
-| LFI Wrapper Abuse | `phar://`, `data://`, `expect://`, `php://input`, `compress.zlib` |
-| GraphQL Introspection | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
-| Log4j / JNDI | `${jndi:ldap://`, `${env:`, `${lower:jndi`, `${::-j}`, `${docker:` |
-| XXE / XML Injection | `<!DOCTYPE`, `<!ENTITY`, `SYSTEM`, `PUBLIC`, `xi:include`, `xpointer` |
-| Sensitive File Probes | `.env`, `.git/config`, `id_rsa`, `.aws/credentials`, `dump.sql`, `phpinfo.php` |
-| Admin Probes | `/phpmyadmin`, `/actuator/*`, `/h2-console`, `/heapdump`, `/swagger-ui` |
-| WordPress Probes | `/wp-content/plugins/`, `/wp-json/wp/v2/`, `/xmlrpc.php`, `/wp-cron.php` |
-| CGI Probes | `/cgi-bin/`, `.cgi`, `.pl`, `.fcgi` |
-| Open Redirect | `?url=http://`, `?redirect=//`, protocol-relative URLs |
-| LDAP Injection | `(&(`, `(|(`, `)(|(`, URL-encoded LDAP operators |
-| XPath Injection | `]\|//*`, `.//*` |
-| CRLF / Log Injection | `%0d%0aSet-Cookie:`, `%0d%0aLocation:`, literal CRLF |
-| Prototype Pollution | `__proto__`, `constructor.prototype`, JSON payload |
-| SSI Injection | `<!--#exec cmd=`, `<!--#include virtual=`, `#echo var=` |
-| Scanner Tools | `sqlmap`, `nuclei`, `gobuster`, `ffuf`, `wpscan`, `masscan`, `hydra`, `metasploit`, `shodan` |
 
 ---
 
