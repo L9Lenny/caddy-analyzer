@@ -44,7 +44,7 @@ Detection:
   • Auth failure surge (401/403) — brute force / credential stuffing
   • 404 surge — directory scanning / enumeration
   • Request threshold — generic high-volume
-  • Pattern detection — SQLi, XSS, path traversal, scanner UAs
+  • Pattern detection — 22 categories: SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, LFI, LFI wrappers, GraphQL, Log4j/JNDI, XXE, open redirect, LDAP/XPath/CRLF/SSI injection, prototype pollution, probes, scanners
 
 Blockade is temporary (default 10m). For permanent block: --duration 0.
 To unblock manually: caddy-analyze unban <ip> or --all.

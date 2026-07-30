@@ -116,45 +116,105 @@
     <p>This information is available in all output formats (table, JSON, CSV, HTML).</p>
 
     <h2>2. URL Unescaping & Evasion Prevention</h2>
-    <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks.</p>
+    <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks. Additionally, a second pass matches against the <strong>raw (non-unescaped) URI</strong> to catch multibyte-encoded traversal sequences (<code>%c0%ae%c0%ae%c0%af</code>, <code>%252e%252e%252f</code>) and internal host probe attempts that would be lost after unescaping.</p>
 
-    <h2>3. Threat Rule Specification</h2>
+    <h2>3. Threat Rule Specification (22 Categories)</h2>
 
     <table>
         <thead>
             <tr>
                 <th>Category</th>
-                <th>Matched Signatures & Vectors</th>
+                <th>Example Patterns</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><strong>SQL Injection (SQLi)</strong></td>
-                <td><code>UNION SELECT</code>, <code>SELECT FROM</code>, <code>OR 1=1</code>, <code>information_schema</code>, <code>pg_sleep()</code>, <code>Benchmark()</code></td>
+                <td><strong>SQL Injection</strong></td>
+                <td><code>UNION SELECT</code>, <code>OR 1=1</code>, <code>pg_sleep</code>, <code>INTO OUTFILE</code>, <code>@@version</code></td>
+            </tr>
+            <tr>
+                <td><strong>NoSQL Injection</strong></td>
+                <td><code>$ne</code>, <code>$gt</code>, <code>$regex</code>, <code>$where</code>, <code>$nin</code>, <code>%24ne</code></td>
+            </tr>
+            <tr>
+                <td><strong>XSS</strong></td>
+                <td><code>&lt;script</code>, <code>onerror=</code>, <code>onfocus=</code>, <code>alert(</code>, <code>document.cookie</code>, <code>data:text/html</code></td>
+            </tr>
+            <tr>
+                <td><strong>SSTI</strong></td>
+                <td><code>__class__</code>, <code>__mro__</code>, <code>freemarker</code>, <code>nunjucks</code>, <code>{{7*7}}</code>, <code>os.popen</code></td>
+            </tr>
+            <tr>
+                <td><strong>SSRF</strong></td>
+                <td><code>169.254.169.254</code>, <code>0x7f000001</code>, <code>gopher://</code>, <code>dict://</code>, <code>redis://</code></td>
+            </tr>
+            <tr>
+                <td><strong>RCE</strong></td>
+                <td><code>/bin/sh</code>, <code>whoami</code>, <code>/dev/tcp/</code>, <code>powershell</code>, <code>certutil</code>, <code>eval()</code></td>
             </tr>
             <tr>
                 <td><strong>Path Traversal / LFI</strong></td>
-                <td><code>../</code>, <code>%2e%2e%2f</code>, <code>/etc/passwd</code>, <code>/proc/self/environ</code>, <code>php://filter</code>, <code>file:///</code></td>
+                <td><code>../</code>, <code>..%00</code>, <code>/etc/passwd</code>, <code>/proc/self/*</code>, <code>php://input</code></td>
             </tr>
             <tr>
-                <td><strong>Cross-Site Scripting (XSS)</strong></td>
-                <td><code>&lt;script&gt;</code>, <code>javascript:</code>, <code>onerror=</code>, <code>alert(</code>, <code>%3Csvg</code></td>
+                <td><strong>GraphQL Introspection</strong></td>
+                <td><code>__schema</code>, <code>__type</code>, <code>IntrospectionQuery</code></td>
             </tr>
             <tr>
-                <td><strong>Remote Code Execution (RCE)</strong></td>
-                <td><code>/bin/sh</code>, <code>powershell</code>, <code>whoami</code>, <code>cat /etc/</code>, <code>eval(base64</code></td>
+                <td><strong>Log4j / JNDI</strong></td>
+                <td><code>${jndi:ldap://</code>, <code>${env:</code>, <code>${lower:jndi</code>, <code>${::-j}</code></td>
+            </tr>
+            <tr>
+                <td><strong>XXE / XInclude</strong></td>
+                <td><code>&lt;!ENTITY</code>, <code>SYSTEM</code>, <code>PUBLIC</code>, <code>xi:include</code>, <code>xpointer</code></td>
+            </tr>
+            <tr>
+                <td><strong>Open Redirect</strong></td>
+                <td><code>?url=http://</code>, <code>?redirect=//</code>, <code>//evil.com</code></td>
+            </tr>
+            <tr>
+                <td><strong>LDAP Injection</strong></td>
+                <td><code>(&amp;(</code>, <code>(|(</code>, <code>)(|(</code>, URL-encoded operators</td>
+            </tr>
+            <tr>
+                <td><strong>XPath Injection</strong></td>
+                <td><code>]|//*</code>, <code>.//*</code></td>
+            </tr>
+            <tr>
+                <td><strong>CRLF / Log Injection</strong></td>
+                <td><code>%0d%0aSet-Cookie:</code>, <code>%0d%0aLocation:</code>, literal CRLF</td>
+            </tr>
+            <tr>
+                <td><strong>Prototype Pollution</strong></td>
+                <td><code>__proto__</code>, <code>constructor.prototype</code>, JSON payloads</td>
+            </tr>
+            <tr>
+                <td><strong>SSI Injection</strong></td>
+                <td><code>&lt;!--#exec cmd=</code>, <code>#include virtual=</code>, <code>#echo var=</code></td>
+            </tr>
+            <tr>
+                <td><strong>LFI Wrapper Abuse</strong></td>
+                <td><code>phar://</code>, <code>data://</code>, <code>expect://</code>, <code>compress.zlib</code></td>
             </tr>
             <tr>
                 <td><strong>Sensitive File Probes</strong></td>
-                <td><code>.env</code>, <code>.git/config</code>, <code>wp-config.php</code>, <code>id_rsa</code>, <code>.aws/credentials</code></td>
+                <td><code>.env</code>, <code>.git/config</code>, <code>id_rsa</code>, <code>dump.sql</code>, <code>phpinfo.php</code></td>
             </tr>
             <tr>
-                <td><strong>Admin Interface Probes</strong></td>
-                <td><code>/phpmyadmin</code>, <code>/actuator/env</code>, <code>/wp-login.php</code>, <code>/console/</code></td>
+                <td><strong>Admin Probes</strong></td>
+                <td><code>/phpmyadmin</code>, <code>/actuator/*</code>, <code>/h2-console</code>, <code>/swagger-ui</code></td>
+            </tr>
+            <tr>
+                <td><strong>WordPress Probes</strong></td>
+                <td><code>/wp-content/plugins/</code>, <code>/xmlrpc.php</code>, <code>/wp-json/wp/v2/</code></td>
+            </tr>
+            <tr>
+                <td><strong>CGI Probes</strong></td>
+                <td><code>/cgi-bin/</code>, <code>.cgi</code>, <code>.fcgi</code></td>
             </tr>
             <tr>
                 <td><strong>Scanner Tools</strong></td>
-                <td><code>sqlmap</code>, <code>nikto</code>, <code>dirbuster</code>, <code>gobuster</code>, <code>nmap</code>, <code>burp suite</code>, <code>zap</code></td>
+                <td><code>sqlmap</code>, <code>nuclei</code>, <code>gobuster</code>, <code>ffuf</code>, <code>wpscan</code>, <code>masscan</code>, <code>hydra</code>, <code>metasploit</code>, <code>shodan</code></td>
             </tr>
         </tbody>
     </table>

@@ -5,6 +5,21 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-07-30
+
+### Added
+- **Expanded to 22 attack categories** (was 15): added XXE/XInclude, Open Redirect, LDAP Injection, XPath Injection, CRLF Injection, Prototype Pollution, SSI Injection, SSRF (cloud metadata / protocol smuggling), SSTI (Freemarker, Jinja2, MRO), NoSQL Injection (`$ne`, `$gt`, `$regex`, `$where`), GraphQL Introspection (`__schema`, `__type`), LFI Wrapper Abuse (`phar://`, `data://`, `compress.*`), WordPress probes, and CGI probes.
+- **Raw URI matching**: Percent-encoded path traversal sequences (`%c0%ae%c0%ae%c0%af`, `%252e%252e%252f`) and internal host probes are checked against the raw URI before URL unescaping — closing evasion gaps.
+- **Expanded existing signatures**: RCE now matches time-based exfiltration (`sleep`, `ping`, `/dev/tcp/`); Log4j catches obfuscated variants (`${lower:jndi`, `${${::-j}}`); path traversal catches null-byte tricks (`%00..`); sensitive file probes cover `.gitignore`, `composer.json`, `package.json`; admin probes cover `/h2-console`, `/heapdump`, `/jolokia`; scanner UA list includes `httpx`, `nuclei`, `ffuf`, `katana`, `dalfox`, `xsstrike`, `commix`, `tplmap`, `nosqlmap`.
+- **Comprehensive test suite**: 55+ test cases covering all 22 categories, dual-pass matching, and false positives.
+- **Security-first README**: Hero callout, Demo GIF at top, 22-row detection table with examples, restructured for immediate security impact.
+- **docs/security.html**: Updated with all 22 categories and compact pattern table.
+
+### Changed
+- **Detection engine**: Introduced `rawPatterns` pre-compiled init block for rules that must match against the raw (non-unescaped) URI, executed before the main `patterns` block.
+- **README reordered**: Hero security callout → Demo GIF → Security Detection → Quick Start → Why caddy-analyzer? → Features → Installation → Docs.
+- **Help text**: `cmd/root.go` and `cmd/guard.go` now reference 22 categories and dual-pass engine.
+
 ## [0.1.2] - 2026-07-29
 
 ### Added
