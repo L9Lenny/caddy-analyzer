@@ -5,6 +5,17 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-07-30
+
+### Added
+- **Seven new detection categories**: SSRF (cloud metadata / protocol smuggling), SSTI (Freemarker, Jinja2, MRO), NoSQL injection (`$ne`, `$gt`, `$regex`, `$where`), GraphQL introspection probe (`__schema`, `__type`), LFI wrapper abuse (`phar://`, `data://`, `compress.*`), WordPress vulnerability scanner probes, and CGI-bin exploitation probe.
+- **Raw URI matching**: Percent-encoded path traversal sequences (`%c0%ae%c0%ae%c0%af`, `%252e%252e%252f`) and internal host probes (`127.0.0.1`, `localhost`) are now checked against the raw URI before URL unescaping — closing evasion gaps.
+- **Expanded existing signatures**: RCE now matches time-based exfiltration (`sleep`, `ping`, `/dev/tcp/`); Log4j catches obfuscated variants (`${lower:jndi`, `${${::-j}}`); path traversal catches null-byte tricks (`%00..`); sensitive file probes cover `.gitignore`, `composer.json`, `package.json`; admin probes cover `/h2-console`, `/heapdump`, `/jolokia`; scanner UA list includes `httpx`, `nuclei`, `ffuf`, `katana`, `dalfox`, `xsstrike`, `commix`, `tplmap`, `nosqlmap`.
+- **Comprehensive test suite**: 176 lines of tests covering every new and existing detection type with edge cases for raw URI matching, percent-encoded bypasses, and mixed encodings.
+
+### Changed
+- **Detection engine**: Introduced `rawPatterns` pre-compiled init block for rules that must match against the raw (non-unescaped) URI, executed before the main `patterns` block.
+
 ## [0.1.2] - 2026-07-29
 
 ### Added

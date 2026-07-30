@@ -16,7 +16,7 @@
 [![Documentation](https://img.shields.io/badge/Documentation-GitHub_Pages-238636?style=flat-square&logo=github)](https://l9lenny.github.io/caddy-analyzer/)
 [![CI Status](https://github.com/L9Lenny/caddy-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/L9Lenny/caddy-analyzer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.2-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
+[![Version](https://img.shields.io/badge/version-v0.1.3-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
 
 ---
 
@@ -36,7 +36,7 @@
 
 - ⚡ **Native Caddy v2 JSON Parsing**: Understands Caddy's structured log schema out-of-the-box (no regex configs required).
 - 📊 **Visual Terminal Bar Charts**: Displays Unicode proportion bars (`████████░░`) and Lipgloss status badges directly in your terminal.
-- 🛡️ **Built-in Threat & Anomaly Detector (`--detect`)**: Identifies SQL Injection, XSS, Path Traversal / LFI, Log4j, RCE, sensitive file probes (`.env`, `.git/config`), and scanner tools. Shows per-IP suspicious request details.
+- 🛡️ **Built-in Threat & Anomaly Detector (`--detect`)**: Identifies SQL Injection, NoSQL Injection, XSS, SSRF, SSTI, GraphQL introspection, Path Traversal / LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive file probes (`.env`, `.git/config`), WordPress/CGI probes, admin interface probes, and scanner tools. Shows per-IP suspicious request details.
 - 🚫 **Real-time Firewall Guard (`guard`)**: Automatically blocks malicious IPs in real time via `iptables` thresholds.
 - 🤖 **Traffic Classifier**: Differentiates human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers.
 - 🔍 **Comparative Diff Engine (`diff`)**: Compare two log files side-by-side (e.g. before vs after deployment) to detect 5xx error spikes, RPS shifts, and latency regressions.
@@ -166,7 +166,7 @@ Subcommands:
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--detect` | `-d` | `false` | Enable security threat detection (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners). Shows per-IP suspicious request details |
+| `--detect` | `-d` | `false` | Enable security threat detection (SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL, Path Traversal, Log4j, RCE, Probes, Scanners). Shows per-IP suspicious request details |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `html` |
 | `--output` | `-o` | `""` | Write report to file instead of stdout |
 | `--watch` | `-w` | `false` | Launch 6-tab interactive TUI dashboard (Bubbletea) |
@@ -206,13 +206,21 @@ Scans every request against a security pattern engine. Per-IP suspicious request
 
 | Attack Category | Pattern / Vector Detected |
 | :--- | :--- |
-| **SQL Injection** | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, etc. |
-| **Path Traversal / LFI** | `../`, `%2e%2e%2f`, `/etc/passwd`, `php://filter`, `file:///`, etc. |
-| **XSS** | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, etc. |
-| **Remote Code Execution (RCE)** | `/bin/sh`, `powershell`, `whoami`, `cat /etc/`, `eval(base64`, etc. |
-| **Sensitive File Discovery** | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.aws/credentials`, etc. |
-| **Admin Interface Probe** | `/phpmyadmin`, `/actuator/env`, `/wp-login.php`, `/console/`, etc. |
-| **Scanner Tools** | `sqlmap`, `nikto`, `dirbuster`, `gobuster`, `nmap`, `burp suite`, `zap`, etc. |
+| **SQL Injection** | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, `exec xp_`, etc. |
+| **NoSQL Injection** | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne`, `%24gt`, `%24regex`, etc. |
+| **Cross-Site Scripting (XSS)** | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, `prompt(`, etc. |
+| **Server-Side Template Injection (SSTI)** | `{{...}}`, `${...}`, `<% %>`, `#{...}`, `__class__`, `freemarker`, `nunjucks`, etc. |
+| **SSRF** | `169.254.169.254`, `metadata.google.internal`, `gopher://`, `dict://`, `0x7f000001`, etc. |
+| **Remote Code Execution (RCE)** | `/bin/sh`, `powershell`, `whoami`, `sleep`, `ping`, `/dev/tcp/`, `nslookup`, etc. |
+| **Path Traversal / LFI** | `../`, `%00..`, `/etc/passwd`, `/etc/shadow`, `php://filter`, `file:///`, etc. |
+| **LFI Wrapper Abuse** | `phar://`, `zip://`, `data://text/plain`, `expect://`, `compress.zlib`, `php://input`, etc. |
+| **GraphQL Introspection** | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
+| **Log4j / JNDI** | `${jndi:`, `class.module.classLoader`, `${lower:jndi`, `${${::-j}}`, etc. |
+| **Sensitive File Discovery** | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.gitignore`, `composer.json`, etc. |
+| **Admin Interface Probe** | `/phpmyadmin`, `/actuator/`, `/console/`, `/h2-console`, `/heapdump`, `/jolokia`, etc. |
+| **WordPress Probe** | `/wp-content/plugins/`, `/wp-json/wp/v2/`, `/xmlrpc.php`, `/wp-includes/`, etc. |
+| **CGI Probe** | `/cgi-bin/` |
+| **Scanner Tools** | `sqlmap`, `nikto`, `gobuster`, `nuclei`, `httpx`, `ffuf`, `katana`, `dalfox`, `xsstrike`, etc. |
 
 ---
 

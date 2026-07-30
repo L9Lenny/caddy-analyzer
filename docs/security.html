@@ -116,7 +116,7 @@
     <p>This information is available in all output formats (table, JSON, CSV, HTML).</p>
 
     <h2>2. URL Unescaping & Evasion Prevention</h2>
-    <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks.</p>
+    <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks. Additionally, a second pass matches against the <strong>raw (non-unescaped) URI</strong> to catch multibyte-encoded traversal sequences (<code>%c0%ae%c0%ae%c0%af</code>, <code>%252e%252e%252f</code>) and internal host probe attempts that would be lost after unescaping.</p>
 
     <h2>3. Threat Rule Specification</h2>
 
@@ -130,31 +130,63 @@
         <tbody>
             <tr>
                 <td><strong>SQL Injection (SQLi)</strong></td>
-                <td><code>UNION SELECT</code>, <code>SELECT FROM</code>, <code>OR 1=1</code>, <code>information_schema</code>, <code>pg_sleep()</code>, <code>Benchmark()</code></td>
+                <td><code>UNION SELECT</code>, <code>SELECT FROM</code>, <code>OR 1=1</code>, <code>information_schema</code>, <code>pg_sleep()</code>, <code>exec xp_</code></td>
             </tr>
             <tr>
-                <td><strong>Path Traversal / LFI</strong></td>
-                <td><code>../</code>, <code>%2e%2e%2f</code>, <code>/etc/passwd</code>, <code>/proc/self/environ</code>, <code>php://filter</code>, <code>file:///</code></td>
+                <td><strong>NoSQL Injection</strong></td>
+                <td><code>$ne</code>, <code>$gt</code>, <code>$regex</code>, <code>$where</code>, <code>$nin</code>, <code>%24ne</code>, <code>%24gt</code>, <code>%24regex</code></td>
             </tr>
             <tr>
                 <td><strong>Cross-Site Scripting (XSS)</strong></td>
-                <td><code>&lt;script&gt;</code>, <code>javascript:</code>, <code>onerror=</code>, <code>alert(</code>, <code>%3Csvg</code></td>
+                <td><code>&lt;script&gt;</code>, <code>javascript:</code>, <code>onerror=</code>, <code>alert(</code>, <code>%3Csvg</code>, <code>prompt(</code></td>
+            </tr>
+            <tr>
+                <td><strong>Server-Side Template Injection (SSTI)</strong></td>
+                <td><code>{{...}}</code>, <code>${...}</code>, <code>&lt;% %&gt;</code>, <code>#{...}</code>, <code>__class__</code>, <code>freemarker</code>, <code>nunjucks</code></td>
+            </tr>
+            <tr>
+                <td><strong>SSRF</strong></td>
+                <td><code>169.254.169.254</code>, <code>metadata.google.internal</code>, <code>gopher://</code>, <code>dict://</code>, <code>0x7f000001</code></td>
             </tr>
             <tr>
                 <td><strong>Remote Code Execution (RCE)</strong></td>
-                <td><code>/bin/sh</code>, <code>powershell</code>, <code>whoami</code>, <code>cat /etc/</code>, <code>eval(base64</code></td>
+                <td><code>/bin/sh</code>, <code>powershell</code>, <code>whoami</code>, <code>sleep</code>, <code>ping</code>, <code>/dev/tcp/</code>, <code>nslookup</code></td>
+            </tr>
+            <tr>
+                <td><strong>Path Traversal / LFI</strong></td>
+                <td><code>../</code>, <code>%00..</code>, <code>/etc/passwd</code>, <code>/etc/shadow</code>, <code>php://filter</code>, <code>file:///</code></td>
+            </tr>
+            <tr>
+                <td><strong>LFI Wrapper Abuse</strong></td>
+                <td><code>phar://</code>, <code>zip://</code>, <code>data://text/plain</code>, <code>expect://</code>, <code>compress.zlib</code>, <code>php://input</code></td>
+            </tr>
+            <tr>
+                <td><strong>GraphQL Introspection</strong></td>
+                <td><code>__schema</code>, <code>__type</code>, <code>__typename</code>, <code>IntrospectionQuery</code></td>
+            </tr>
+            <tr>
+                <td><strong>Log4j / JNDI</strong></td>
+                <td><code>${jndi:</code>, <code>class.module.classLoader</code>, <code>${lower:jndi</code>, <code>${${::-j}}</code></td>
             </tr>
             <tr>
                 <td><strong>Sensitive File Probes</strong></td>
-                <td><code>.env</code>, <code>.git/config</code>, <code>wp-config.php</code>, <code>id_rsa</code>, <code>.aws/credentials</code></td>
+                <td><code>.env</code>, <code>.git/config</code>, <code>wp-config.php</code>, <code>id_rsa</code>, <code>.gitignore</code>, <code>composer.json</code></td>
             </tr>
             <tr>
                 <td><strong>Admin Interface Probes</strong></td>
-                <td><code>/phpmyadmin</code>, <code>/actuator/env</code>, <code>/wp-login.php</code>, <code>/console/</code></td>
+                <td><code>/phpmyadmin</code>, <code>/actuator/</code>, <code>/console/</code>, <code>/h2-console</code>, <code>/heapdump</code>, <code>/jolokia</code></td>
+            </tr>
+            <tr>
+                <td><strong>WordPress Probes</strong></td>
+                <td><code>/wp-content/plugins/</code>, <code>/wp-json/wp/v2/</code>, <code>/xmlrpc.php</code>, <code>/wp-includes/</code></td>
+            </tr>
+            <tr>
+                <td><strong>CGI Probe</strong></td>
+                <td><code>/cgi-bin/</code></td>
             </tr>
             <tr>
                 <td><strong>Scanner Tools</strong></td>
-                <td><code>sqlmap</code>, <code>nikto</code>, <code>dirbuster</code>, <code>gobuster</code>, <code>nmap</code>, <code>burp suite</code>, <code>zap</code></td>
+                <td><code>sqlmap</code>, <code>nikto</code>, <code>gobuster</code>, <code>nuclei</code>, <code>httpx</code>, <code>ffuf</code>, <code>katana</code>, <code>dalfox</code>, <code>xsstrike</code></td>
             </tr>
         </tbody>
     </table>
