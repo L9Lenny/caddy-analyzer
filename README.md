@@ -16,6 +16,14 @@
   <a href="https://github.com/L9Lenny/caddy-analyzer"><img src="https://img.shields.io/github/stars/L9Lenny/caddy-analyzer?style=flat-square" alt="Stars"></a>
 </p>
 
+<p align="center"><strong>🛡️ 22 attack categories · Dual-pass evasion-resistant engine · Real-time iptables firewall guard</strong></p>
+
+---
+
+## Demo
+
+![](assets/demo.gif)
+
 ---
 
 ## Security Detection Engine
@@ -59,32 +67,6 @@ Output example:
 
 ---
 
-## Why caddy-analyzer?
-
-Caddy v2 uses a **structured JSON log format** that differs from the Common/Combined Log Format used by Apache, Nginx, and most log analysis tools. Generic tools like `goaccess`, `lnav`, or `grep`/`awk` pipelines cannot parse Caddy's nested schema out of the box.
-
-| Capability | caddy-analyzer | goaccess | lnav | grep/awk |
-|---|---|---|---|---|
-| Caddy v2 JSON native | ✅ | ❌ | ❌ | ❌ |
-| Security threat detection (22 categories) | ✅ | ❌ | ❌ | ❌ |
-| Dual-pass evasion-resistant detection | ✅ | ❌ | ❌ | ❌ |
-| Real-time firewall guard (iptables) | ✅ | ❌ | ❌ | ❌ |
-| Per-IP suspicious request details | ✅ | ❌ | ❌ | ❌ |
-| Comparative diff engine (RPS, 5xx, latency) | ✅ | ❌ | ❌ | ❌ |
-| TUI dashboard with live streaming | ✅ | ✅ | ✅ | ❌ |
-| Standalone HTML reports | ✅ | ✅ | ❌ | ❌ |
-| Multi-source (Docker, K8s, journalctl) | ✅ | ❌ | ✅ | ❌ |
-| CIDR filtering | ✅ | ❌ | ❌ | ❌ |
-| Traffic classifier (crawler vs human) | ✅ | ❌ | ❌ | ❌ |
-
----
-
-## Demo
-
-![](assets/demo.gif)
-
----
-
 ## Quick Start
 
 ```bash
@@ -109,6 +91,26 @@ caddy-analyze diff before.log after.log
 # Launch interactive TUI dashboard
 caddy-analyze --watch
 ```
+
+---
+
+## Why caddy-analyzer?
+
+Caddy v2 uses a **structured JSON log format** that differs from the Common/Combined Log Format used by Apache, Nginx, and most log analysis tools. Generic tools like `goaccess`, `lnav`, or `grep`/`awk` pipelines cannot parse Caddy's nested schema out of the box.
+
+| Capability | caddy-analyzer | goaccess | lnav | grep/awk |
+|---|---|---|---|---|
+| Caddy v2 JSON native | ✅ | ❌ | ❌ | ❌ |
+| Security threat detection (22 categories) | ✅ | ❌ | ❌ | ❌ |
+| Dual-pass evasion-resistant detection | ✅ | ❌ | ❌ | ❌ |
+| Real-time firewall guard (iptables) | ✅ | ❌ | ❌ | ❌ |
+| Per-IP suspicious request details | ✅ | ❌ | ❌ | ❌ |
+| Comparative diff engine (RPS, 5xx, latency) | ✅ | ❌ | ❌ | ❌ |
+| TUI dashboard with live streaming | ✅ | ✅ | ✅ | ❌ |
+| Standalone HTML reports | ✅ | ✅ | ❌ | ❌ |
+| Multi-source (Docker, K8s, journalctl) | ✅ | ❌ | ✅ | ❌ |
+| CIDR filtering | ✅ | ❌ | ❌ | ❌ |
+| Traffic classifier (crawler vs human) | ✅ | ❌ | ❌ | ❌ |
 
 ---
 

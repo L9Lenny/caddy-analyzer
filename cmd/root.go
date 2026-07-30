@@ -54,7 +54,7 @@ var rootCmd = &cobra.Command{
 	Use:   "caddy-analyze [flags] [source...]",
 	Short: "Analyze Caddy access logs from files, stdin, Docker, Kubernetes, or journalctl",
 	Args:  cobra.ArbitraryArgs,
-	Long: `Analyze Caddy v2 access logs with anomaly detection (SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL, LFI, RCE, Log4j, probes, scanners).
+	Long: `Analyze Caddy v2 access logs with security detection across 22 attack categories (SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, LFI, GraphQL, Log4j/JNDI, XXE, open redirect, LDAP/XPath/CRLF/SSI injection, prototype pollution, probes, scanners) using a dual-pass evasion-resistant engine.
 
 Sources:
   /path/to/file          Local file (supports glob patterns)
