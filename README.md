@@ -1,4 +1,4 @@
-# caddy-analyzer
+![caddy-analyzer](assets/title.svg)
 
 [![Go Version](https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go)](https://go.dev)
 [![Go Reference](https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg)](https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer)
@@ -7,29 +7,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.1.3-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
 
-Zero-config CLI tool for parsing, analyzing, and visualizing **Caddy v2 structured JSON access logs**. Includes a TUI dashboard, security threat detection engine, real-time firewall guard, and offline HTML reports.
+---
+
+**caddy-analyzer** is a zero-config CLI tool for parsing, analyzing, and visualizing Caddy v2 structured JSON access logs. It includes a TUI dashboard, a security threat detection engine, a real-time firewall guard, and offline HTML report generation.
 
 ---
 
 ## Installation
 
-**Linux / macOS:**
 ```bash
+# Linux / macOS
 curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
-```
 
-**Windows (PowerShell):**
-```powershell
+# Windows (PowerShell)
 iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex
-```
 
-**Go toolchain:**
-```bash
+# Go toolchain
 go install github.com/L9Lenny/caddy-analyzer/cmd/caddy-analyze@latest
-```
 
-**Docker:**
-```bash
+# Docker
 docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/access.log
 ```
 
@@ -53,7 +49,7 @@ caddy-analyze tail docker://my-caddy
 # Filter by IP/CIDR
 caddy-analyze --ip 10.0.0.0/8 --5xx --no-bots
 
-# Generate standalone HTML report
+# Generate HTML report
 caddy-analyze -f html -o report.html --detect
 ```
 
@@ -61,16 +57,16 @@ caddy-analyze -f html -o report.html --detect
 
 ## Features
 
-- **Native Caddy v2 JSON Parsing** — no regex configs required
-- **Security Detection Engine** (`--detect`) — SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL introspection, Path Traversal/LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive file probes, WordPress/CGI probes, admin interface probes, and scanner tool detection with per-IP suspicious request details
-- **Real-time Firewall Guard** (`guard`) — auto-blocks malicious IPs via `iptables` thresholds
-- **Traffic Classifier** — distinguishes human users from search engine crawlers and automated scrapers
-- **Comparative Diff Engine** (`diff`) — side-by-side comparison of two log files for 5xx spikes, RPS shifts, and latency regressions
-- **Interactive HTML Reports** (`-f html`) — standalone dark-mode dashboard
-- **6-Tab TUI Dashboard** (`--watch`) — live Bubbletea/Lipgloss dashboard with streaming, alerts, and metrics
-- **Multi-Source Support** — files, stdin (`-`), Docker (`docker://`), Kubernetes (`k8s://`), systemd (`journalctl://`)
-- **Smart Filter Listing** — entry-level filters (`--ip`, `--5xx`, etc.) show color-coded log listings instead of aggregate reports
-- **Per-IP & CIDR Filtering** — works with both `caddy-analyze` and `caddy-analyze tail`
+- **Native Caddy v2 JSON parsing** — no regex configuration required
+- **Security detection engine** (`--detect`) — identifies SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL introspection, path traversal/LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive file probes, WordPress/CGI probes, admin probes, and scanner tools with per-IP suspicious request details
+- **Real-time firewall guard** (`guard`) — automatically blocks malicious IPs via iptables thresholds
+- **Traffic classifier** — distinguishes human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers
+- **Comparative diff engine** (`diff`) — side-by-side log comparison for 5xx spikes, RPS shifts, and latency regressions
+- **Interactive HTML reports** (`-f html`) — standalone dark-mode dashboard
+- **6-tab TUI dashboard** (`--watch`) — live Bubbletea/Lipgloss dashboard with streaming, alerts, and top metrics
+- **Multi-source support** — files, stdin, Docker (`docker://`), Kubernetes (`k8s://`), systemd (`journalctl://`)
+- **Smart filter listing** — entry-level filters (`--ip`, `--5xx`, etc.) show color-coded log listings instead of aggregate reports
+- **Per-IP and CIDR filtering** — works with both `caddy-analyze` and `caddy-analyze tail`
 
 ---
 
@@ -80,20 +76,20 @@ caddy-analyze -f html -o report.html --detect
 caddy-analyze [flags] [source...]
 
 Subcommands:
-  tail [source...]                   Stream and colorize logs in real time
-  top [dimension] [source...]        Top-N metric inspector (path, ip, ua, status, bandwidth)
-  diff <baseline> <target>           Compare two log files
-  guard [source...]                  Auto-block malicious IPs via iptables
-  config [show|set|reset|source]     Manage default log source configuration
-  block <ip...>                      Manually block IP via iptables
-  unban <ip...>                      Remove IP block from iptables
+  tail                         Stream and colorize logs in real time
+  top <dimension>              Top-N metric inspector (path, ip, ua, status, bandwidth)
+  diff <baseline> <target>     Compare two log files
+  guard                        Auto-block malicious IPs via iptables
+  config                       Manage default log source configuration
+  block <ip...>                Manually block IP via iptables
+  unban <ip...>                Remove IP block from iptables
 ```
 
 ### Flags
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--detect` | `-d` | `false` | Enable security threat detection (SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL, Path Traversal, Log4j, RCE, probes, scanners) |
+| `--detect` | `-d` | `false` | Enable security threat detection (SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL, path traversal, Log4j, RCE, probes, scanners) |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `html` |
 | `--output` | `-o` | `""` | Write report to file |
 | `--watch` | `-w` | `false` | Launch 6-tab interactive TUI dashboard |
@@ -123,7 +119,7 @@ Subcommands:
 
 ## Security Detection Engine
 
-Scans every request against a pattern-based engine. Suspicious requests are grouped by offending IP and shown in all output formats.
+Scans every request against a pattern-based engine. Suspicious requests are grouped by offending IP and displayed in all output formats.
 
 ```
   - 192.168.1.100     15 malicious requests
@@ -133,21 +129,21 @@ Scans every request against a pattern-based engine. Suspicious requests are grou
 
 | Category | Detected Patterns |
 | :--- | :--- |
-| **SQL Injection** | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, `exec xp_` |
-| **NoSQL Injection** | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne`, `%24gt`, `%24regex` |
-| **XSS** | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, `prompt(` |
-| **SSTI** | `{{...}}`, `${...}`, `<% %>`, `#{...}`, `__class__`, `freemarker`, `nunjucks` |
-| **SSRF** | `169.254.169.254`, `metadata.google.internal`, `gopher://`, `dict://`, `0x7f000001` |
-| **RCE** | `/bin/sh`, `powershell`, `whoami`, `sleep`, `ping`, `/dev/tcp/`, `nslookup` |
-| **Path Traversal / LFI** | `../`, `%00..`, `/etc/passwd`, `/etc/shadow`, `php://filter`, `file:///` |
-| **LFI Wrapper Abuse** | `phar://`, `zip://`, `data://text/plain`, `expect://`, `compress.zlib`, `php://input` |
-| **GraphQL Introspection** | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
-| **Log4j / JNDI** | `${jndi:`, `class.module.classLoader`, `${lower:jndi`, `${${::-j}}` |
-| **Sensitive File Probes** | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.gitignore`, `composer.json` |
-| **Admin Probes** | `/phpmyadmin`, `/actuator/`, `/console/`, `/h2-console`, `/heapdump`, `/jolokia` |
-| **WordPress Probes** | `/wp-content/plugins/`, `/wp-json/wp/v2/`, `/xmlrpc.php`, `/wp-includes/` |
-| **CGI Probes** | `/cgi-bin/` |
-| **Scanner Tools** | `sqlmap`, `nikto`, `gobuster`, `nuclei`, `httpx`, `ffuf`, `katana`, `dalfox`, `xsstrike` |
+| SQL Injection | `UNION SELECT`, `SELECT FROM`, `OR 1=1`, `information_schema`, `pg_sleep`, `exec xp_` |
+| NoSQL Injection | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne`, `%24gt`, `%24regex` |
+| XSS | `<script>`, `javascript:`, `onerror=`, `alert(`, `%3Csvg`, `prompt(` |
+| SSTI | `{{...}}`, `${...}`, `<% %>`, `#{...}`, `__class__`, `freemarker`, `nunjucks` |
+| SSRF | `169.254.169.254`, `metadata.google.internal`, `gopher://`, `dict://`, `0x7f000001` |
+| RCE | `/bin/sh`, `powershell`, `whoami`, `sleep`, `ping`, `/dev/tcp/`, `nslookup` |
+| Path Traversal / LFI | `../`, `%00..`, `/etc/passwd`, `/etc/shadow`, `php://filter`, `file:///` |
+| LFI Wrapper Abuse | `phar://`, `zip://`, `data://text/plain`, `expect://`, `compress.zlib`, `php://input` |
+| GraphQL Introspection | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
+| Log4j / JNDI | `${jndi:`, `class.module.classLoader`, `${lower:jndi`, `${${::-j}}` |
+| Sensitive File Probes | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.gitignore`, `composer.json` |
+| Admin Probes | `/phpmyadmin`, `/actuator/`, `/console/`, `/h2-console`, `/heapdump`, `/jolokia` |
+| WordPress Probes | `/wp-content/plugins/`, `/wp-json/wp/v2/`, `/xmlrpc.php`, `/wp-includes/` |
+| CGI Probes | `/cgi-bin/` |
+| Scanner Tools | `sqlmap`, `nikto`, `gobuster`, `nuclei`, `httpx`, `ffuf`, `katana`, `dalfox`, `xsstrike` |
 
 ---
 
@@ -158,3 +154,11 @@ Contributions, issues, and feature requests are welcome. See [CONTRIBUTING.md](C
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <img src="assets/mascot.svg" width="80" alt="caddy-analyzer mascot">
+  <br>
+  <sub>Gopher created with <a href="https://gopherize.me">gopherize.me</a> &middot; Artwork by <a href="https://twitter.com/ashleymcnamara">Ashley McNamara</a>, inspired by <a href="http://reneefrench.blogspot.com/">Renee French</a></sub>
+</p>
