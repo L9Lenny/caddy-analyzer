@@ -1,26 +1,32 @@
-<table>
-  <tr>
-    <td><img src="assets/mascot.svg" width="100" alt="caddy-analyzer mascot"></td>
-    <td><img src="assets/title.svg" alt="caddy-analyzer" height="80"></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="assets/mascot.svg" width="90" alt="caddy-analyzer mascot"><br>
+  <img src="assets/title.svg" alt="caddy-analyzer" height="80">
+</p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go)](https://go.dev)
-[![Go Reference](https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg)](https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer)
-[![Documentation](https://img.shields.io/badge/Documentation-GitHub_Pages-238636?style=flat-square&logo=github)](https://l9lenny.github.io/caddy-analyzer/)
-[![CI Status](https://github.com/L9Lenny/caddy-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/L9Lenny/caddy-analyzer/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.3-fbbf24?style=flat-square)](https://github.com/L9Lenny/caddy-analyzer)
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.24-38bdf8?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="https://pkg.go.dev/github.com/L9Lenny/caddy-analyzer"><img src="https://pkg.go.dev/badge/github.com/L9Lenny/caddy-analyzer.svg" alt="Go Reference"></a>
+  <a href="https://l9lenny.github.io/caddy-analyzer/"><img src="https://img.shields.io/badge/Documentation-GitHub_Pages-238636?style=flat-square&logo=github" alt="Documentation"></a>
+  <a href="https://github.com/L9Lenny/caddy-analyzer/actions"><img src="https://github.com/L9Lenny/caddy-analyzer/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square" alt="License: MIT"></a>
+  <a href="https://github.com/L9Lenny/caddy-analyzer"><img src="https://img.shields.io/badge/version-v0.1.3-fbbf24?style=flat-square" alt="Version"></a>
+</p>
 
 ---
 
-**caddy-analyzer** is a zero-config CLI tool for parsing, analyzing, and visualizing Caddy v2 structured JSON access logs. It includes a TUI dashboard, a security threat detection engine, a real-time firewall guard, and offline HTML report generation.
+**caddy-analyzer** is a zero-config CLI tool for parsing, analyzing, and visualizing Caddy v2 structured JSON access logs. It combines a TUI dashboard, security threat detection engine, real-time firewall guard, comparative diff engine, and offline HTML report generation in a single binary.
+
+---
+
+## Demo
+
+![](assets/demo.gif)
 
 ---
 
 ## Installation
 
-```bash
+```
 # Linux / macOS
 curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
 
@@ -39,7 +45,7 @@ docker run --rm -v /var/log/caddy:/logs ghcr.io/L9Lenny/caddy-analyzer /logs/acc
 ## Quick Start
 
 ```bash
-# Set default log source once
+# Set default log source (persistent config)
 caddy-analyze config /var/log/caddy/access.log
 
 # Analyze with security detection
@@ -48,34 +54,39 @@ caddy-analyze --detect
 # Top-N metric inspector
 caddy-analyze top ip
 
-# Real-time streaming
-caddy-analyze tail docker://my-caddy
+# Real-time streaming with filters
+caddy-analyze tail --ip 10.0.0.0/8 --no-bots docker://my-caddy
 
-# Filter by IP/CIDR
-caddy-analyze --ip 10.0.0.0/8 --5xx --no-bots
-
-# Generate HTML report
+# Generate standalone HTML report
 caddy-analyze -f html -o report.html --detect
+
+# Compare two log files
+caddy-analyze diff before.log after.log
 ```
 
 ---
 
 ## Features
 
-- **Native Caddy v2 JSON parsing** — no regex configuration required
-- **Security detection engine** (`--detect`) — identifies SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL introspection, path traversal/LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive file probes, WordPress/CGI probes, admin probes, and scanner tools with per-IP suspicious request details
-- **Real-time firewall guard** (`guard`) — automatically blocks malicious IPs via iptables thresholds
-- **Traffic classifier** — distinguishes human users from search engine crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers
-- **Comparative diff engine** (`diff`) — side-by-side log comparison for 5xx spikes, RPS shifts, and latency regressions
-- **Interactive HTML reports** (`-f html`) — standalone dark-mode dashboard
-- **6-tab TUI dashboard** (`--watch`) — live Bubbletea/Lipgloss dashboard with streaming, alerts, and top metrics
-- **Multi-source support** — files, stdin, Docker (`docker://`), Kubernetes (`k8s://`), systemd (`journalctl://`)
-- **Smart filter listing** — entry-level filters (`--ip`, `--5xx`, etc.) show color-coded log listings instead of aggregate reports
-- **Per-IP and CIDR filtering** — works with both `caddy-analyze` and `caddy-analyze tail`
+| Area | Capability |
+| :--- | :--- |
+| **Parsing** | Native Caddy v2 structured JSON — no regex or configuration required |
+| **Security** | 15 attack categories detected: SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL introspection, path traversal/LFI, LFI wrapper abuse, Log4j/JNDI, RCE, sensitive file probes, WordPress/CGI probes, admin probes, and scanner tools |
+| **Firewall** | Real-time `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds and ban duration |
+| **Traffic Analysis** | Classifies human users vs crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers |
+| **Diff Engine** | Side-by-side log comparison detecting 5xx spikes, RPS shifts, and latency regressions |
+| **TUI Dashboard** | 6-tab interactive Bubbletea/Lipgloss interface with live streaming, security alerts, and top metrics |
+| **HTML Reports** | Standalone dark-mode single-file HTML reports for sharing |
+| **Data Sources** | Local files, stdin, Docker (`docker://`), Kubernetes (`k8s://`), systemd journalctl (`journalctl://`) |
+| **Filtering** | Entry-level filters (`--ip`, `--5xx`, etc.) switch to color-coded log listings automatically. Supports CIDR, status classes, methods, path globs, and more |
 
 ---
 
-## Command Reference
+## Documentation
+
+Full documentation is available at [l9lenny.github.io/caddy-analyzer](https://l9lenny.github.io/caddy-analyzer/).
+
+### Command Reference
 
 ```
 caddy-analyze [flags] [source...]
@@ -94,21 +105,21 @@ Subcommands:
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `--detect` | `-d` | `false` | Enable security threat detection (SQLi, NoSQLi, XSS, SSRF, SSTI, GraphQL, path traversal, Log4j, RCE, probes, scanners) |
+| `--detect` | `-d` | `false` | Enable security threat detection |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `html` |
 | `--output` | `-o` | `""` | Write report to file |
 | `--watch` | `-w` | `false` | Launch 6-tab interactive TUI dashboard |
 | `--top` | `-t` | `10` | Max top entries in tables (0 disables) |
 | `--from` | | `""` | Time filter start (RFC3339 or relative: `5m`, `1h`, `2d`) |
 | `--to` | | `""` | Time filter end (RFC3339) |
-| `--interval` | `-i` | `""` | Periodic aggregation (e.g. `10s`, `1m`) |
+| `--interval` | `-i` | `""` | Periodic aggregation |
 | `--follow` | `-F` | `false` | Stream and report every 5 seconds |
-| `--slow` | | `""` | Filter requests slower than duration (e.g. `500ms`, `1s`) |
+| `--slow` | | `""` | Filter requests slower than duration |
 | `--ip` | | `""` | Filter by client IP or CIDR subnet |
 | `--exclude-ip` | | `""` | Exclude IP or CIDR subnet |
-| `--status` | `-s` | `""` | Filter by status code(s): `-s 200,404` |
-| `--method` | `-m` | `""` | Filter by HTTP method: `-m POST` |
-| `--path` | `-p` | `""` | Filter by path glob: `-p /api/*` |
+| `--status` | `-s` | `""` | Filter by status code(s) |
+| `--method` | `-m` | `""` | Filter by HTTP method |
+| `--path` | `-p` | `""` | Filter by path glob |
 | `--2xx` | | `false` | Filter 2xx responses |
 | `--3xx` | | `false` | Filter 3xx responses |
 | `--4xx` | | `false` | Filter 4xx responses |
@@ -141,7 +152,7 @@ Scans every request against a pattern-based engine. Suspicious requests are grou
 | SSRF | `169.254.169.254`, `metadata.google.internal`, `gopher://`, `dict://`, `0x7f000001` |
 | RCE | `/bin/sh`, `powershell`, `whoami`, `sleep`, `ping`, `/dev/tcp/`, `nslookup` |
 | Path Traversal / LFI | `../`, `%00..`, `/etc/passwd`, `/etc/shadow`, `php://filter`, `file:///` |
-| LFI Wrapper Abuse | `phar://`, `zip://`, `data://text/plain`, `expect://`, `compress.zlib`, `php://input` |
+| LFI Wrapper Abuse | `phar://`, `zip://`, `data://`, `expect://`, `compress.zlib`, `php://input` |
 | GraphQL Introspection | `__schema`, `__type`, `__typename`, `IntrospectionQuery` |
 | Log4j / JNDI | `${jndi:`, `class.module.classLoader`, `${lower:jndi`, `${${::-j}}` |
 | Sensitive File Probes | `.env`, `.git/config`, `wp-config.php`, `id_rsa`, `.gitignore`, `composer.json` |
@@ -160,4 +171,8 @@ Contributions, issues, and feature requests are welcome. See [CONTRIBUTING.md](C
 
 MIT License. See [LICENSE](LICENSE) for details.
 
-<sub>Gopher created with [gopherize.me](https://gopherize.me) — Artwork by [Ashley McNamara](https://twitter.com/ashleymcnamara), inspired by [Renee French](http://reneefrench.blogspot.com/)</sub>
+<br>
+
+<p align="center">
+  <sub>Gopher created with <a href="https://gopherize.me">gopherize.me</a> &middot; Artwork by <a href="https://twitter.com/ashleymcnamara">Ashley McNamara</a>, inspired by <a href="http://reneefrench.blogspot.com/">Renee French</a></sub>
+</p>
