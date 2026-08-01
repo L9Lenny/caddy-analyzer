@@ -22,6 +22,7 @@ var (
 	guardAuthLimit     int
 	guardNotFoundLimit int
 	guardAuditLog       string
+	guardStateFile      string
 )
 
 func init() {
@@ -31,6 +32,7 @@ func init() {
 	guardCmd.Flags().IntVarP(&guardAuthLimit, "auth-limit", "", 10, "Max auth failures (401/403) before blocking")
 	guardCmd.Flags().IntVarP(&guardNotFoundLimit, "notfound-limit", "", 50, "Max not found (404) before blocking")
 	guardCmd.Flags().StringVarP(&guardAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
+	guardCmd.Flags().StringVarP(&guardStateFile, "state-file", "", "/var/lib/caddy-analyzer/blocked.json", "State file for crash recovery (empty to disable)")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -120,6 +122,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		BlockDuration: duration,
 		IPValidator:   validateIP,
 		OnAudit:       onAudit,
+		StatePath:      guardStateFile,
 	})
 
 	durMsg := duration.String()

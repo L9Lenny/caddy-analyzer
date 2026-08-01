@@ -37,6 +37,7 @@ type Config struct {
 	BlockDuration time.Duration
 	IPValidator   func(string) error
 	OnAudit       func(action, ip, reason, duration string)
+	StatePath     string
 }
 
 type expiryEntry struct {
@@ -66,17 +67,67 @@ type Guard struct {
 	blocker  Blocker
 	cfg      Config
 	expCh    chan expiryEntry
+	state    *stateFile
+	expiries map[string]time.Time
 }
 
 func New(cfg Config) *Guard {
-	return &Guard{
+	sf := newStateFile(cfg.StatePath)
+	g := &Guard{
 		blocked:  make(map[string]bool),
 		detector: analysis.NewDetector(),
 		engine:   analysis.New(types.Filters{}),
 		blocker:  iptablesBlocker{},
 		cfg:      cfg,
 		expCh:    make(chan expiryEntry, 10000),
+		state:    sf,
+		expiries: make(map[string]time.Time),
 	}
+	g.loadState()
+	return g
+}
+
+func (g *Guard) loadState() {
+	if g.state == nil {
+		return
+	}
+	entries := g.state.load()
+	now := time.Now()
+	for _, e := range entries {
+		if g.cfg.BlockDuration > 0 && e.When.Before(now) {
+			if err := g.blocker.Unblock(e.IP); err == nil {
+				if g.cfg.OnAudit != nil {
+					g.cfg.OnAudit("unblock", e.IP, "expired during downtime", g.cfg.BlockDuration.String())
+				}
+			}
+			continue
+		}
+		g.blocked[e.IP] = true
+		if g.cfg.BlockDuration > 0 {
+			g.expiries[e.IP] = e.When
+			g.expCh <- expiryEntry{ip: e.IP, when: e.When}
+		}
+	}
+}
+
+func (g *Guard) saveState() {
+	if g.state == nil {
+		return
+	}
+	g.mu.Lock()
+	entries := make([]stateEntry, 0, len(g.expiries))
+	for ip, when := range g.expiries {
+		entries = append(entries, stateEntry{IP: ip, When: when})
+	}
+	permanent := make([]stateEntry, 0)
+	for ip := range g.blocked {
+		if _, hasExp := g.expiries[ip]; !hasExp {
+			permanent = append(permanent, stateEntry{IP: ip, When: time.Time{}})
+		}
+	}
+	entries = append(entries, permanent...)
+	g.mu.Unlock()
+	_ = g.state.saveEntries(entries)
 }
 
 func (g *Guard) SetBlocker(b Blocker) {
@@ -212,11 +263,16 @@ func (g *Guard) block(ctx context.Context, c Candidate, now time.Time) bool {
 		g.cfg.OnAudit("block", c.IP, c.Why, dur)
 	}
 	if g.cfg.BlockDuration > 0 {
+		expiry := now.Add(g.cfg.BlockDuration)
+		g.mu.Lock()
+		g.expiries[c.IP] = expiry
+		g.mu.Unlock()
 		select {
-		case g.expCh <- expiryEntry{ip: c.IP, when: now.Add(g.cfg.BlockDuration)}:
+		case g.expCh <- expiryEntry{ip: c.IP, when: expiry}:
 		case <-ctx.Done():
 		}
 	}
+	g.saveState()
 	return true
 }
 
@@ -248,11 +304,15 @@ func (g *Guard) runExpiryLoop(ctx context.Context) {
 				e := heap.Pop(&h).(expiryEntry)
 				if err := g.blocker.Unblock(e.ip); err == nil {
 					g.removeBlocked(e.ip)
+					g.mu.Lock()
+					delete(g.expiries, e.ip)
+					g.mu.Unlock()
 					if g.cfg.OnAudit != nil {
 						g.cfg.OnAudit("unblock", e.ip, "block duration expired", g.cfg.BlockDuration.String())
 					}
 				}
 			}
+			g.saveState()
 		case <-ctx.Done():
 			return
 		}
