@@ -63,7 +63,10 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid window: %w", err)
 	}
 
-	duration, _ := time.ParseDuration(guardDuration)
+	duration, err := time.ParseDuration(guardDuration)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", guardDuration, err)
+	}
 	if guardDuration == "0" || guardDuration == "" {
 		duration = 0
 	}

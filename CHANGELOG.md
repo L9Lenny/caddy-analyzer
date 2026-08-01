@@ -15,12 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CI quality gates**: Added `go vet`, `golangci-lint`, `govulncheck` as blocking jobs. Coverage reporting with `-race -coverprofile`. All GitHub Actions pinned to commit SHAs. `permissions: contents: read`.
 - **SBOM and release signing**: GoReleaser generates SPDX JSON SBOMs via Syft. `checksums.txt` signed with cosign keyless (OIDC). SBOM, certificate, and signature uploaded as release assets.
 - **CODEOWNERS**: Requires @L9Lenny review on CI workflows, installers, and build config.
-- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash).
+- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash), 2 guard duration/window validation tests.
 
 ### Fixed
 - **Regex false positives and duplicate patterns**: Removed 11 exact duplicate patterns (Log4j, WordPress). Bounded 8 unbounded `.*` quantifiers (SQLi, Log4j, RCE, XXE, LFI, GraphQL, CRLF). Removed overly broad `/docs/` from admin probe.
 - **Race condition on `blocked` map in guard mode**: `sync.Mutex` protects all map access. Fixed bypass bug where `unblockAfter` didn't remove the IP from the map after `iptables -D` — attacker could strike again undetected. If `iptables -A` fails, IP is removed instead of falsely marked blocked.
 - **`parseBlockedIPs` field index bug**: `fields[3]` was reading the `--` opt column instead of `fields[4]` (source IP) — `listBlockedIPs` always returned garbage IPs.
+- **Swallowed `ParseDuration` error in guard mode**: `--duration abc` (typo) silently set duration to `0`, making blocks permanent with no warning. Now returns an error. Same fix applied to `--interval` flag.
 - **File rotation data loss**: `readFileAndFollow` now detects rotation via `os.SameFile()` (inode comparison) and reopens the file. Previously, the old fd pointed to a deleted inode and new content was lost.
 - **`cmd.Wait()` error ignored**: `execLines` now logs command exit errors and reaps zombie processes after `Process.Kill()` on context cancellation.
 - **`install.sh` without checksum verification**: Switched to `#!/usr/bin/env bash` with `set -euo pipefail`. Downloads `checksums.txt` and verifies archive with `sha256sum -c`. Trap cleanup on `INT`/`TERM` (was `EXIT` only). Removed dead `v0.1.0` fallback.

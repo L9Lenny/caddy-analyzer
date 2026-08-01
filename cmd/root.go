@@ -181,7 +181,10 @@ func runAnalysis(cmd *cobra.Command, args []string) error {
 		return runWatch(ctx, sources)
 	}
 
-	interval, _ := time.ParseDuration(flagInterval)
+	interval, err := time.ParseDuration(flagInterval)
+	if err != nil {
+		return fmt.Errorf("invalid --interval duration: %w", err)
+	}
 	if interval > 0 {
 		return runIntervalMode(ctx, sources, filters, interval)
 	}
