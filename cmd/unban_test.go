@@ -12,40 +12,39 @@ func TestParseBlockedIPs(t *testing.T) {
 	}{
 		{
 			name: "single IPv4 block",
-			output: `Chain INPUT (policy ACCEPT 10 packets, 660 bytes)
-num   target  prot  opt  source  destination
-1   DROP  all  --  192.168.1.100  0.0.0.0/0`,
+			output: `-P INPUT ACCEPT
+-A INPUT -s 192.168.1.100/32 -j DROP`,
 			want: []string{"192.168.1.100"},
 		},
 		{
 			name: "multiple blocks with CIDR",
-			output: `1   DROP  all  --  10.0.0.1  0.0.0.0/0
-2   DROP  all  --  172.16.0.0/12  0.0.0.0/0
-3   DROP  all  --  8.8.8.8  0.0.0.0/0`,
+			output: `-A INPUT -s 10.0.0.1/32 -j DROP
+-A INPUT -s 172.16.0.0/12 -j DROP
+-A INPUT -s 8.8.8.8/32 -j DROP`,
 			want: []string{"10.0.0.1", "172.16.0.0", "8.8.8.8"},
 		},
 		{
-			name: "skip 0.0.0.0/0 source",
-			output: `1   DROP  all  --  0.0.0.0/0  0.0.0.0/0
-2   DROP  all  --  1.2.3.4  0.0.0.0/0`,
+			name: "skip 0.0.0.0 source",
+			output: `-A INPUT -s 0.0.0.0/0 -j DROP
+-A INPUT -s 1.2.3.4/32 -j DROP`,
 			want: []string{"1.2.3.4"},
 		},
 		{
-			name: "skip ::/0 source",
-			output: `1   DROP  all  --  ::/0  ::/0
-2   DROP  all  --  fe80::1  ::/0`,
+			name: "skip :: source",
+			output: `-A INPUT -s ::/0 -j DROP
+-A INPUT -s fe80::1/128 -j DROP`,
 			want: []string{"fe80::1"},
 		},
 		{
 			name: "skip non-DROP rules",
-			output: `1   ACCEPT  all  --  0.0.0.0/0  0.0.0.0/0
-2   DROP  all  --  10.0.0.5  0.0.0.0/0`,
+			output: `-A INPUT -s 0.0.0.0/0 -j ACCEPT
+-A INPUT -s 10.0.0.5/32 -j DROP`,
 			want: []string{"10.0.0.5"},
 		},
 		{
-			name: "empty output",
-			output: `Chain INPUT (policy ACCEPT)`,
-			want:  nil,
+			name:   "empty output",
+			output: `-P INPUT ACCEPT`,
+			want:   nil,
 		},
 		{
 			name:   "truly empty output",
@@ -53,9 +52,20 @@ num   target  prot  opt  source  destination
 			want:   nil,
 		},
 		{
-			name: "malformed lines skipped",
-			output: `1   DROP  --  10.0.0.1
-2   DROP  all  --  10.0.0.2  0.0.0.0/0`,
+			name: "rule without -s skipped",
+			output: `-A INPUT -j DROP
+-A INPUT -s 10.0.0.2/32 -j DROP`,
+			want: []string{"10.0.0.2"},
+		},
+		{
+			name: "IPv6 block",
+			output: `-A INPUT -s 2001:db8::1/128 -j DROP`,
+			want: []string{"2001:db8::1"},
+		},
+		{
+			name: "DROP in comment not matched",
+			output: `-A INPUT -s 10.0.0.1/32 -j ACCEPT -m comment --comment "DROP test"
+-A INPUT -s 10.0.0.2/32 -j DROP`,
 			want: []string{"10.0.0.2"},
 		},
 	}

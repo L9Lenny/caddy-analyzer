@@ -93,7 +93,7 @@ func listBlocked() error {
 }
 
 func listBlockedIPs() ([]string, error) {
-	out, err := exec.Command("iptables", "-L", "INPUT", "-n", "--line-numbers").Output()
+	out, err := exec.Command("iptables", "-S", "INPUT").Output()
 	if err != nil {
 		return nil, fmt.Errorf("iptables: %w", err)
 	}
@@ -103,22 +103,20 @@ func listBlockedIPs() ([]string, error) {
 func parseBlockedIPs(output string) []string {
 	var ips []string
 	for _, line := range strings.Split(output, "\n") {
-		if !strings.Contains(line, "DROP") {
+		if !strings.Contains(line, "-j DROP") {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 5 {
-			continue
+		for i, f := range fields {
+			if f == "-s" && i+1 < len(fields) {
+				ip := strings.Split(fields[i+1], "/")[0]
+				if ip == "0.0.0.0" || ip == "::" {
+					continue
+				}
+				ips = append(ips, ip)
+				break
+			}
 		}
-		source := fields[4]
-		if source == "0.0.0.0/0" || source == "::/0" {
-			continue
-		}
-		ip := source
-		if idx := strings.Index(ip, "/"); idx > 0 {
-			ip = ip[:idx]
-		}
-		ips = append(ips, ip)
 	}
 	return ips
 }
