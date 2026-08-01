@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guard IP allowlist**: `--never-block` (comma-separated IPs/CIDRs) and `--never-block-file` (file, one per line, `#` comments) prevent banning trusted IPs. Flags are merged.
 - **IP validation**: `validateIP()` accepts IPv4/IPv6/CIDR and rejects flag injection. Applied to all three iptables call sites.
 - **Version injection via ldflags**: `Version` variable populated by GoReleaser, CI, and Dockerfile.
-- **CI quality gates**: `go vet`, `golangci-lint`, `govulncheck`, coverage reporting. Actions SHA-pinned, `permissions: contents: read`. Secret scanning (gitleaks) and SAST (gosec).
+- **CI quality gates**: `go vet`, `golangci-lint`, `govulncheck`, coverage reporting. Actions SHA-pinned, `permissions: contents: read`. Secret scanning (gitleaks) and SAST (gosec, with G104/G204/G304 excluded as inherent to CLI design).
 - **SBOM and release signing**: SPDX JSON SBOMs via Syft, cosign keyless signature uploaded as release asset.
 - **CODEOWNERS**: Requires review on CI workflows, installers, and build config.
 
@@ -30,12 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`install.sh`**: Added `set -euo pipefail` and checksum verification.
 - **Custom HTML escaper**: Replaced with `html.EscapeString` (also escapes `'`).
 - **Scanner UA list duplicates**: Removed 5 duplicate entries.
+- **Windows CI test failures**: File-permission tests now skip on Windows (Unix perms not honored). `cmd.Wait()` error explicitly discarded after `Process.Kill()`.
 
 ### Changed
 - **Detection gap coverage**: 4 new pattern families (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF Java ghost bits, open redirect backslash bypass).
 - **Go 1.24 aligned** across `go.mod`, Dockerfile, CI matrix, and release workflow.
 - **Dockerfile production image pinned** to `alpine:3.20` with SHA256 digest.
 - **`listBlockedIPs` switched to `iptables -S`**: Stable one-rule-per-line format instead of locale-dependent `iptables -L`.
+- **Config file permissions tightened**: Directory `0755`→`0750`, file `0644`→`0600` (gosec G301/G306).
 
 ## [0.1.3] - 2026-07-30
 
