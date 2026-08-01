@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **P3-1: Dockerfile uses alpine:latest (not pinned)** (`Dockerfile`): Pinned production image to `alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc` (version + digest). Builds are now reproducible — the same Dockerfile always produces the same base image.
 - **P3-2: Scanner UA list has duplicates** (`pkg/analysis/detect.go`): Removed 5 duplicate entries from `scannerUAs` slice: `nmap`, `httpx`, `acunetix`, `nessus`, `openvas` each appeared twice in the regex alternation.
 - **P3-3: No SBOM or release signing** (`.goreleaser.yaml`, `.github/workflows/release.yml`): Added SBOM generation via Syft (SPDX JSON) in GoReleaser config — one SBOM per archive artifact. Added cosign keyless signing of `checksums.txt` in the release workflow (`id-token: write` permission for OIDC). SBOM files (`.spdx.json`), certificate (`.pem`), and signature (`.sig`) are uploaded as release assets. Pinned `sigstore/cosign-installer` and `anchore/sbom-action` to SHA digests.
+- **P3-4: No CODEOWNERS for sensitive files** (`.github/CODEOWNERS`): Added CODEOWNERS file requiring @L9Lenny review on changes to CI workflows, installers (`install.sh`), and build config (`Dockerfile`, `.goreleaser.yaml`).
 
 ## [0.1.3] - 2026-07-30
 
