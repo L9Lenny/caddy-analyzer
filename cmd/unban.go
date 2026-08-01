@@ -97,17 +97,20 @@ func listBlockedIPs() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("iptables: %w", err)
 	}
+	return parseBlockedIPs(string(out)), nil
+}
 
+func parseBlockedIPs(output string) []string {
 	var ips []string
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		if !strings.Contains(line, "DROP") {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 4 {
+		if len(fields) < 5 {
 			continue
 		}
-		source := fields[3]
+		source := fields[4]
 		if source == "0.0.0.0/0" || source == "::/0" {
 			continue
 		}
@@ -117,5 +120,5 @@ func listBlockedIPs() ([]string, error) {
 		}
 		ips = append(ips, ip)
 	}
-	return ips, nil
+	return ips
 }
