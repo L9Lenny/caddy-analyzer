@@ -5,6 +5,11 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **P0-2: Race condition on `blocked` map in guard mode** (`cmd/guard.go`): Extracted `blockState` struct with `sync.Mutex` protecting the `blocked` map. All map access now goes through thread-safe methods (`isBlocked`, `setBlocked`, `removeBlocked`, `count`). Fixed bypass bug: `unblockAfter` now removes the IP from the blocked map after `iptables -D` succeeds — previously the IP stayed in `blocked=true` forever while the iptables rule was gone, creating a window where the attacker could strike again undetected. Also fixed P1-8: if `iptables -A` fails, the IP is now removed from the blocked map instead of being falsely marked as blocked. Added `TestBlockStateConcurrent` with 100 concurrent workers (20K ops) validated under `-race`.
+
 ## [0.1.3] - 2026-07-30
 
 ### Added
