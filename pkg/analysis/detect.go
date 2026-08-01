@@ -87,9 +87,9 @@ func compilePatterns() []struct {
 	}
 
 	// SQL Injection
-	add(`(?i)(\bUNION\s+(ALL\s+)?SELECT\b|SELECT\b.*\bFROM\b)`, DetSQLInjection, "SQL injection: UNION SELECT")
+	add(`(?i)(\bUNION\s+(?:ALL\s+)?SELECT\b|\bSELECT\b\s+.{0,200}?\bFROM\b\s+\w)`, DetSQLInjection, "SQL injection: UNION SELECT")
 	add(`(?i)(\bOR\s+1\s*=\s*1|1\s*=\s*1\s*--|\bOR\s+'1'\s*=\s*'1'|'(\s*OR\s*|\s*AND\s*)'1'='1|"(\s*OR\s*|\s*AND\s*)"1"="1)`, DetSQLInjection, "SQL injection: tautology")
-	add(`(?i)('.*--|\bDROP\s+.*TABLE|;\s*DROP\s+|DELETE\s+FROM|TRUNCATE\s+)`, DetSQLInjection, "SQL injection: destructive")
+	add(`(?i)('.{0,50}?--|\bDROP\s+TABLE\b|;\s*DROP\s+|DELETE\s+FROM\b|TRUNCATE\b)`, DetSQLInjection, "SQL injection: destructive")
 	add(`(?i)(INFORMATION_SCHEMA|PG_CATALOG|MYSQL_HELP|SYSTEM_USER|CURRENT_USER|SESSION_USER|USER\s*\(\))`, DetSQLInjection, "SQL injection: system info")
 	add(`(?i)(pg_sleep|SLEEP\s*\(|WAITFOR\s+DELAY|BENCHMARK\s*\(|DBMS_LOCK\.SLEEP|SIGN\s*\(|EXP\s*\(|POW\s*\(|IF\s*\(.*SLEEP|SLEEP\s*$)`, DetSQLInjection, "SQL injection: time-based blind")
 	add(`(?i)(CONVERT\s*\(.*INT|CAST\s*\(.*INT|EXTRACTVALUE\s*\(|UPDATEXML\s*\(|GROUP_CONCAT\s*\()`, DetSQLInjection, "SQL injection: error-based")
@@ -129,7 +129,7 @@ func compilePatterns() []struct {
 	// Log4j / JNDI (before SSTI to avoid ${...} overlap)
 	add(`(?i)(\$\{jndi:|class\.module\.classLoader|\$\{lower:jndi|\$\{upper:jndi|\$\{::-j|\$\{env:|\$\{sys:|\$\{log4j:|\$\{ctx:|\$\{java:|\$\{date:|\$\{docker:|\$\{k8s:|\$\{spring:|\$\{main:|\$\{bundle:|\$\{map:|\$\{mdc:|\$\{name:|\$\{marker:|\$\{exception:)`, DetLog4j, "Log4j: JNDI lookup")
 	add(`(?i)(jndi:ldap://|jndi:rmi://|jndi:ldaps://|jndi:dns://|jndi:iiop://|jndi:http://|jndi:https://)`, DetLog4j, "Log4j: JNDI protocol")
-	add(`(?i)(\$\{.*:.*:.*\}|\$\{.*24.*|%24\{|%2524\{)`, DetLog4j, "Log4j: encoded lookup")
+	add(`(?i)(\$\{[^}]*:[^}]*:[^}]*\}|\$\{[^}]*24[^}]*\|%24\{|%2524\{)`, DetLog4j, "Log4j: encoded lookup")
 
 	// SSRF (before SSTI to avoid ${...} overlap)
 	add(`(?i)(169\.254\.169\.254|metadata\.google\.internal|metadata\.compute\.internal|metadata\.goog|100\.100\.100\.200|168\.63\.129\.16|fd00:ec2::23)`, DetSSRF, "SSRF: cloud metadata endpoint")
@@ -163,7 +163,7 @@ func compilePatterns() []struct {
 	add(`(?i)(preg_replace\s*\(.*\/[eie]|mb_ereg_replace\s*\(.*\/[eie]|preg_filter\s*\(.*\/[eie])`, DetRCE, "RCE: regex eval modifier")
 	add(`(?i)(O:\d+:.*:\d+:\{|C:\d+:.*:\d+:\{|__destruct|__wakeup|__toString|__call|__callStatic|__get|__set|__invoke|__sleep|__isset|__unset)`, DetRCE, "RCE: deserialization gadget")
 	add(`(?i)(java\.lang\.Runtime|java\.lang\.ProcessBuilder|Runtime\.getRuntime|AccessController\.doPrivileged|Unsafe\.defineClass|URLClassLoader\.newInstance)`, DetRCE, "RCE: Java runtime access")
-	add(`(?i)(\$\{.*\}\s*\(|`+"`"+`\w+\s+`+"`"+`|\$\(.*\)|;.*\b(bash|sh|python|perl|ruby|php|node)\s)`, DetRCE, "RCE: command substitution")
+	add(`(?i)(\$\{.{0,200}?\}\s*\(|`+"`"+`\w+\s+`+"`"+`|\$\(.{0,200}?\)|;.{0,100}?\b(bash|sh|python|perl|ruby|php|node)\s)`, DetRCE, "RCE: command substitution")
 	add(`(?i)(cmd\.exe\s+[/\/][ck]|command\s*=\s*cmd|exec\s*=\s*cmd|wscript\.exe|cscript\.exe)`, DetRCE, "RCE: Windows command execution")
 
 	// XXE / XML Injection (before path traversal to catch SYSTEM file references)
@@ -172,7 +172,7 @@ func compilePatterns() []struct {
 	add(`(?i)(<!ENTITY\s+\w+\s+(SYSTEM|PUBLIC)\s+")`, DetXXE, "XXE: external entity")
 	add(`(?i)(ENTITY\s+%\s+\w+\s+SYSTEM|<!ENTITY\s+%\s+\w+\s+")`, DetXXE, "XXE: parameter entity")
 	add(`(?i)(/xinclude|xmlns:xi=|xi:include|xi:fallback|xpointer)`, DetXXE, "XXE: XInclude attack")
-	add(`(?i)(<!DOCTYPE\s+[a-zA-Z].*\[.*<!ENTITY)`, DetXXE, "XXE: internal DTD entity")
+	add(`(?i)(<!DOCTYPE\s+[a-zA-Z].{0,300}?\[.{0,300}?<!ENTITY)`, DetXXE, "XXE: internal DTD entity")
 
 	// Path Traversal / LFI
 	add(`(?i)(\.\./|\.\.\\|\.\.%2[fF]|\.\.%5[cC]|%2e%2e%2[fF]|%2e%2e%5[cC])`, DetPathTraversal, "LFI: directory traversal")
@@ -181,7 +181,7 @@ func compilePatterns() []struct {
 	add(`(?i)(/proc/self|/proc/1/|/proc/self/environ|/proc/self/fd|/proc/self/cmdline|/proc/self/maps|/proc/self/mem|/proc/self/root|/proc/self/cwd|/proc/net/|/proc/version|/proc/cpuinfo|/proc/meminfo|/proc/diskstats|/proc/modules|/proc/mounts|/proc/cmdline)`, DetPathTraversal, "LFI: /proc filesystem probe")
 	add(`(?i)(/windows/win\.ini|/windows/system32/|/windows/system|/windows/system|/windows/temp/|/boot\.ini|/autoexec\.bat|/windows/repair|/windows/regedit\.exe|/windows/explorer\.exe|/windows/notepad\.exe|/winnt/|pagefile\.sys|ntldr|NTDETECT\.COM|boot\.ini)`, DetPathTraversal, "LFI: Windows system files")
 	add(`(?i)(/\.ssh/|/\.git/)`, DetPathTraversal, "LFI: dotfile access")
-	add(`(?i)(/root/|/home/|/Users/).*/(\.ssh/|\.bash_history|\.bashrc|\.profile|\.zshrc|\.config|\.local|\.cache)`, DetPathTraversal, "LFI: user home data")
+	add(`(?i)(/root/|/home/|/Users/)[^?]*/(\.ssh/|\.bash_history|\.bashrc|\.profile|\.zshrc|\.config|\.local|\.cache)`, DetPathTraversal, "LFI: user home data")
 	add(`(?i)(/var/log/|/var/mail/|/var/spool/|/var/backups/|/var/www/|/var/www/html/|/var/www/cgi-bin/|/usr/local/etc/|/usr/local/bin/)`, DetPathTraversal, "LFI: var/usr files")
 	add(`(?i)(\.[\w-]+\.\w+://|\.\w+:\/\/)`, DetPathTraversal, "LFI: wrapper chain")
 
@@ -190,14 +190,9 @@ func compilePatterns() []struct {
 	add(`(?i)(convert\.base64-encode|convert\.iconv|resource=.*\.php|read=convert\.base64)`, DetLFIWrapper, "LFI: filter chain wrapper")
 
 	// GraphQL Introspection
-	add(`(?i)(__schema|__type|__typename|__field|__directive|__enumValue|__InputValue|IntrospectionQuery|type\s*\{.*\})`, DetGraphQL, "GraphQL: introspection query")
+	add(`(?i)(__schema|__type|__typename|__field|__directive|__enumValue|__InputValue|IntrospectionQuery|type\s*\{[^}]*\})`, DetGraphQL, "GraphQL: introspection query")
 	add(`(?i)({__schema|{__type|{__typename)`, DetGraphQL, "GraphQL: schema discovery")
-	add(`(?i)(query\s*\{.*\{.*\}|mutation\s*\{.*\{|subscription\s*\{)`, DetGraphQL, "GraphQL: operation discovery")
-
-	// Log4j / JNDI
-	add(`(?i)(\$\{jndi:|class\.module\.classLoader|\$\{lower:jndi|\$\{upper:jndi|\$\{::-j|\$\{env:|\$\{sys:|\$\{log4j:|\$\{ctx:|\$\{java:|\$\{date:|\$\{docker:|\$\{k8s:|\$\{spring:|\$\{main:|\$\{bundle:|\$\{map:|\$\{mdc:|\$\{name:|\$\{marker:|\$\{exception:)`, DetLog4j, "Log4j: JNDI lookup")
-	add(`(?i)(jndi:ldap://|jndi:rmi://|jndi:ldaps://|jndi:dns://|jndi:iiop://|jndi:http://|jndi:https://)`, DetLog4j, "Log4j: JNDI protocol")
-	add(`(?i)(\$\{.*:.*:.*\}|\$\{.*24.*|%24\{|%2524\{)`, DetLog4j, "Log4j: encoded lookup")
+	add(`(?i)(query\s*\{[^}]*\{[^}]*\}|mutation\s*\{[^}]*\{|subscription\s*\{)`, DetGraphQL, "GraphQL: operation discovery")
 
 	// WordPress Probe (before sensitive file to catch wp paths first)
 	add(`(?i)(/wp-content/plugins/|/wp-content/themes/|/wp-content/uploads/|/wp-content/languages/|/wp-content/cache/|/wp-content/upgrade/|/wp-content/index\.php)`, DetWPProbe, "WordPress: content directory probe")
@@ -235,23 +230,13 @@ func compilePatterns() []struct {
 	add(`(?i)(/heapdump|/heap\.dmp|/dump\.bin|/dumptofile|/jvm\.dump)`, DetAdminProbe, "Admin: heap dump access")
 	add(`(?i)(/jolokia|/jolokia/|/actuator/jolokia|/jmx|/jmx-console|/jmxinvoke)`, DetAdminProbe, "Admin: JMX/jolokia endpoint")
 	add(`(?i)(/admin|/admin/|/administrator|/adm/|/panel/|/cpanel/|/dashboard/|/manage/|/management/|/manager/|/backend/|/backoffice/)`, DetAdminProbe, "Admin: admin panel")
-	add(`(?i)(/swagger|/swagger-ui|/swagger-resources|/api-docs|/v2/api-docs|/v3/api-docs|/openapi\.json|/swagger\.json|/docs/)`, DetAdminProbe, "Admin: API documentation")
+	add(`(?i)(/swagger|/swagger-ui|/swagger-resources|/api-docs|/v2/api-docs|/v3/api-docs|/openapi\.json|/swagger\.json)`, DetAdminProbe, "Admin: API documentation")
 	add(`(?i)(/solr/|/elasticsearch/|/zabbix/|/grafana/|/prometheus/|/kibana/|/nagios/|/cacti/|/munin/|/monitoring/)`, DetAdminProbe, "Admin: monitoring tool")
 	add(`(?i)(/wp-login\.php|/wp-admin/|/wp-admin/admin-ajax\.php|/administrator/)`, DetAdminProbe, "Admin: WordPress admin")
 	add(`(?i)(/\.svn/|/\.svn/entries|/\.svn/wc\.db|/\.DS_Store|/Thumbs\.db|/\.hg/|/\.bzr/|/WEB-INF/|/WEB-INF/web\.xml|/WEB-INF/database\.properties)`, DetAdminProbe, "Admin: VCS / metadata")
 	add(`(?i)(/debug/|/api/debug|/api/v1/debug|/debug\.php|/dev/|/api/dev|/test/|/testing/|/staging/)`, DetAdminProbe, "Admin: debug/dev endpoint")
 	add(`(?i)(/cgi-bin/phpinfo|/cgi-bin/php|/aws-tools/|/server-info|/server-status|/info\.aspx|/trace\.axd|/elb-status)`, DetAdminProbe, "Admin: server info page")
 	add(`(?i)(/\.aws/|/\.azure/|/\.gcp/|/credentials|/secrets|/tokens|/keys|/passwords)`, DetAdminProbe, "Admin: credential path")
-
-	// WordPress Probe
-	add(`(?i)(/wp-content/plugins/|/wp-content/themes/|/wp-content/uploads/|/wp-content/languages/|/wp-content/cache/|/wp-content/upgrade/|/wp-content/index\.php)`, DetWPProbe, "WordPress: content directory probe")
-	add(`(?i)(/wp-json/wp/v2/|/wp-json/oembed/|/wp-json/|/index\.php/rest_route)`, DetWPProbe, "WordPress: REST API probe")
-	add(`(?i)(/wp-includes/|/wp-admin/js/|/wp-admin/css/|/wp-admin/images/)`, DetWPProbe, "WordPress: core directory probe")
-	add(`(?i)(/xmlrpc\.php|/xmlrpc\.php\?rsd)`, DetWPProbe, "WordPress: XML-RPC probe")
-	add(`(?i)(/wp-cron\.php|/wp-activate\.php|/wp-signup\.php|/wp-trackback\.php|/wp-mail\.php|/wp-links-opml\.php)`, DetWPProbe, "WordPress: misc endpoint probe")
-	add(`(?i)(/wp-content/plugins/woocommerce|/wp-content/plugins/elementor|/wp-content/plugins/contact-form-7|/wp-content/plugins/wordfence|/wp-content/plugins/akismet|/wp-content/plugins/yoast|/wp-content/plugins/jetpack|/wp-content/plugins/redirection|/wp-content/plugins/tablepress|/wp-content/plugins/nextend|/wp-content/plugins/gravityforms)`, DetWPProbe, "WordPress: popular plugin probe")
-	add(`(?i)(/wp-content/upgrade/|/wp-content/backup-|/wp-content/ai1wm-backups|/wp-content/snapshots)`, DetWPProbe, "WordPress: backup directory probe")
-	add(`(?i)(/wp-content/debug\.log|/wp-content/error\.log|/wp-content/install\.php|/wp-content/setup\.php)`, DetWPProbe, "WordPress: sensitive file probe")
 
 	// CGI Probe
 	add(`(?i)(/cgi-bin/|/cgi-bin/test.cgi|/cgi-sys/|/fcgi-bin/|/CGI-BIN/)`, DetCGIProbe, "CGI: cgi-bin probe")
@@ -270,7 +255,7 @@ func compilePatterns() []struct {
 	add(`(?i)(\]\|\s*//\s*\*|\.//\s*\*)`, DetXPathInjection, "XPath: path manipulation")
 
 	// CRLF / Log Injection
-	add(`(?i)(%0[dD]%0[aA].*[a-zA-Z-]+:|%0d%0a%0d%0a|%0d%0aContent-Length|%0d%0aLocation|%0d%0aSet-Cookie|%0d%0aWWW-Authenticate|%0d%0aHost:)`, DetCRLFInjection, "CRLF: HTTP header injection")
+	add(`(?i)(%0[dD]%0[aA].{0,50}?[a-zA-Z-]+:|%0d%0a%0d%0a|%0d%0aContent-Length|%0d%0aLocation|%0d%0aSet-Cookie|%0d%0aWWW-Authenticate|%0d%0aHost:)`, DetCRLFInjection, "CRLF: HTTP header injection")
 	add(`(?i)(\r\n\s*[a-zA-Z-]+:|\r\n\r\n)`, DetCRLFInjection, "CRLF: literal header injection")
 
 	// Prototype Pollution
@@ -329,7 +314,7 @@ func init() {
 	addRaw(`(?i)(%22|%27|%3c|%3e|%3C|%3E|%00|null|undefined|NaN)`, DetXSS, "XSS: raw encoded payload")
 	addRaw(`(?i)(%2524{|%2525|%252e%252e%252f|%252f..|..%252f|%252f)`, DetPathTraversal, "LFI: double-encoded traversal (raw URI)")
 	addRaw(`(?i)(\.\w+://\w+\.\w+|\.\w+://\d+\.\d+\.\d+\.\d+)`, DetSSRF, "SSRF: protocol wrapper (raw URI)")
-	addRaw(`(?i)(\$%7bjndi|\$%7b.*jndi|\$%7blower:jndi|\$%7bupper:jndi)`, DetLog4j, "Log4j: URL-encoded JNDI (raw URI)")
+	addRaw(`(?i)(\$%7bjndi|\$%7b.{0,100}?jndi|\$%7blower:jndi|\$%7bupper:jndi)`, DetLog4j, "Log4j: URL-encoded JNDI (raw URI)")
 	addRaw(`(?i)(%00|%0d|%0a|%0D|%0A|%09)`, DetCRLFInjection, "CRLF: encoded control char (raw URI)")
 }
 
