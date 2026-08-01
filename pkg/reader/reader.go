@@ -154,6 +154,11 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 	}
 	defer f.Close()
 
+	initialInfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
@@ -180,15 +185,21 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			info, err := f.Stat()
+			info, err := os.Stat(path)
 			if err != nil {
-				return nil
+				continue
 			}
-			if info.Size() < pos {
-				pos = 0
-				if _, err := f.Seek(0, io.SeekStart); err != nil {
+
+			if !os.SameFile(initialInfo, info) || info.Size() < pos {
+				if err := f.Close(); err != nil {
 					return err
 				}
+				f, err = os.Open(path)
+				if err != nil {
+					return err
+				}
+				initialInfo, _ = f.Stat()
+				pos = 0
 			} else if info.Size() == pos {
 				continue
 			}
@@ -291,10 +302,13 @@ func execLines(ctx context.Context, cmd *exec.Cmd, out chan string) (<-chan stri
 			case out <- scanner.Text():
 			case <-ctx.Done():
 				cmd.Process.Kill()
+				cmd.Wait()
 				return
 			}
 		}
-		cmd.Wait()
+		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+			fmt.Fprintf(os.Stderr, "error: command exited: %v\n", err)
+		}
 	}()
 
 	return out, nil
