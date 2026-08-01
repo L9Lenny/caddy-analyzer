@@ -310,7 +310,7 @@ caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
     <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments.</p>
 
     <h3><code>config [show|set|reset]</code></h3>
-    <p>Manages persistent default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files.</p>
+    <p>Manages persistent default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files. Use the <code>--global</code> / <code>-g</code> flag to read or write the global config instead of the local one.</p>
 
     <h3><code>guard [source]</code> & <code>block</code> / <code>unban</code></h3>
     <p>Monitors streaming logs and automatically adds offending IP addresses to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded (<code>--limit 50 --window 1m</code>).</p>

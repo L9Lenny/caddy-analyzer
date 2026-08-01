@@ -161,7 +161,7 @@ caddy-analyze [flags] [source...]
 
 Subcommands:
   tail                         Stream and colorize logs in real time
-  top <dimension>              Top-N metric inspector (path, ip, ua, status, bandwidth)
+  top <dimension>              Top-N metric inspector (path, ip, ua, status, method, host, bandwidth)
   diff <baseline> <target>     Compare two log files
   guard                        Auto-block malicious IPs via iptables
   config                       Manage default log source configuration
