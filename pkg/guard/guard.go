@@ -4,8 +4,10 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +40,7 @@ type Config struct {
 	IPValidator   func(string) error
 	OnAudit       func(action, ip, reason, duration string)
 	StatePath     string
+	NeverBlock    []string
 }
 
 type expiryEntry struct {
@@ -60,31 +63,76 @@ func (h *expiryHeap) Pop() any {
 }
 
 type Guard struct {
-	mu       sync.Mutex
-	blocked  map[string]bool
-	detector *analysis.Detector
-	engine   *analysis.Engine
-	blocker  Blocker
-	cfg      Config
-	expCh    chan expiryEntry
-	state    *stateFile
-	expiries map[string]time.Time
+	mu          sync.Mutex
+	blocked     map[string]bool
+	detector    *analysis.Detector
+	engine      *analysis.Engine
+	blocker     Blocker
+	cfg         Config
+	expCh       chan expiryEntry
+	state       *stateFile
+	expiries    map[string]time.Time
+	allowlist   []*net.IPNet
 }
 
 func New(cfg Config) *Guard {
 	sf := newStateFile(cfg.StatePath)
 	g := &Guard{
-		blocked:  make(map[string]bool),
-		detector: analysis.NewDetector(),
-		engine:   analysis.New(types.Filters{}),
-		blocker:  iptablesBlocker{},
-		cfg:      cfg,
-		expCh:    make(chan expiryEntry, 10000),
-		state:    sf,
-		expiries: make(map[string]time.Time),
+		blocked:   make(map[string]bool),
+		detector:  analysis.NewDetector(),
+		engine:    analysis.New(types.Filters{}),
+		blocker:   iptablesBlocker{},
+		cfg:       cfg,
+		expCh:     make(chan expiryEntry, 10000),
+		state:     sf,
+		expiries:  make(map[string]time.Time),
+		allowlist: parseCIDRList(cfg.NeverBlock),
 	}
 	g.loadState()
 	return g
+}
+
+func parseCIDRList(list []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, s := range list {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if !strings.Contains(s, "/") {
+			ip := net.ParseIP(s)
+			if ip == nil {
+				continue
+			}
+			if ip.To4() != nil {
+				s += "/32"
+			} else {
+				s += "/128"
+			}
+		}
+		_, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			continue
+		}
+		nets = append(nets, ipnet)
+	}
+	return nets
+}
+
+func (g *Guard) isAllowlisted(ip string) bool {
+	if len(g.allowlist) == 0 {
+		return false
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, n := range g.allowlist {
+		if n.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Guard) loadState() {
@@ -232,6 +280,9 @@ func (g *Guard) Tick(ctx context.Context) []Candidate {
 
 	var blocked []Candidate
 	for _, c := range candidates {
+		if g.isAllowlisted(c.IP) {
+			continue
+		}
 		if g.cfg.IPValidator != nil {
 			if err := g.cfg.IPValidator(c.IP); err != nil {
 				continue

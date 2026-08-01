@@ -23,6 +23,7 @@ var (
 	guardNotFoundLimit int
 	guardAuditLog       string
 	guardStateFile      string
+	guardNeverBlock     []string
 )
 
 func init() {
@@ -33,6 +34,7 @@ func init() {
 	guardCmd.Flags().IntVarP(&guardNotFoundLimit, "notfound-limit", "", 50, "Max not found (404) before blocking")
 	guardCmd.Flags().StringVarP(&guardAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
 	guardCmd.Flags().StringVarP(&guardStateFile, "state-file", "", "/var/lib/caddy-analyzer/blocked.json", "State file for crash recovery (empty to disable)")
+	guardCmd.Flags().StringSliceVarP(&guardNeverBlock, "never-block", "", nil, "IPs/CIDRs that will never be blocked (e.g. 10.0.0.0/8,192.168.1.1)")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -55,6 +57,7 @@ Examples:
   caddy-analyze guard docker://my-caddy --limit 200 --window 5m
   caddy-analyze guard docker://my-caddy --duration 1h
   caddy-analyze guard k8s://caddy-pod -n production --auth-limit 5
+  caddy-analyze guard /var/log/caddy/access.log --never-block 10.0.0.0/8,192.168.1.1
 `,
 	Args: cobra.ArbitraryArgs,
 	RunE: runGuard,
@@ -123,6 +126,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		IPValidator:   validateIP,
 		OnAudit:       onAudit,
 		StatePath:      guardStateFile,
+		NeverBlock:    guardNeverBlock,
 	})
 
 	durMsg := duration.String()

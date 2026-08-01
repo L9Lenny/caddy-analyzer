@@ -286,6 +286,75 @@ func TestGuardAuditOnBlock(t *testing.T) {
 	}
 }
 
+func TestGuardNeverBlockAllowlist(t *testing.T) {
+	fb := newFakeBlocker()
+	cfg := Config{
+		Limit:         1,
+		AuthLimit:     10,
+		NotFoundLimit: 50,
+		Window:        50 * time.Millisecond,
+		BlockDuration: 0,
+		IPValidator:   func(string) error { return nil },
+		NeverBlock:    []string{"10.0.0.0/8", "192.168.1.1"},
+	}
+	g := New(cfg)
+	g.SetBlocker(fb)
+
+	g.Evaluate(caddyLine("10.0.0.5", "/api", "GET", 200))
+	g.Tick(context.Background())
+
+	if g.IsBlocked("10.0.0.5") {
+		t.Error("10.0.0.5 should not be blocked (in 10.0.0.0/8 allowlist)")
+	}
+	if fb.blocked["10.0.0.5"] {
+		t.Error("iptables should not have been called for allowlisted IP")
+	}
+}
+
+func TestGuardNeverBlockSingleIP(t *testing.T) {
+	fb := newFakeBlocker()
+	cfg := Config{
+		Limit:         1,
+		AuthLimit:     10,
+		NotFoundLimit: 50,
+		Window:        50 * time.Millisecond,
+		BlockDuration: 0,
+		IPValidator:   func(string) error { return nil },
+		NeverBlock:    []string{"192.168.1.1"},
+	}
+	g := New(cfg)
+	g.SetBlocker(fb)
+
+	g.Evaluate(caddyLine("192.168.1.1", "/api", "GET", 200))
+	g.Tick(context.Background())
+
+	if g.IsBlocked("192.168.1.1") {
+		t.Error("192.168.1.1 should not be blocked (in allowlist)")
+	}
+}
+
+func TestGuardNeverBlockDoesNotAffectOthers(t *testing.T) {
+	fb := newFakeBlocker()
+	cfg := Config{
+		Limit:         1,
+		AuthLimit:     10,
+		NotFoundLimit: 50,
+		Window:        50 * time.Millisecond,
+		BlockDuration: 0,
+		IPValidator:   func(string) error { return nil },
+		NeverBlock:    []string{"10.0.0.0/8"},
+	}
+	g := New(cfg)
+	g.SetBlocker(fb)
+
+	g.Evaluate(caddyLine("8.8.8.8", "/api", "GET", 200))
+	g.Tick(context.Background())
+
+	if !g.IsBlocked("8.8.8.8") {
+		t.Error("8.8.8.8 should be blocked (not in allowlist)")
+	}
+}
+
 func TestGuardTickRejectsInvalidIP(t *testing.T) {
 	fb := newFakeBlocker()
 	g := newTestGuard()
