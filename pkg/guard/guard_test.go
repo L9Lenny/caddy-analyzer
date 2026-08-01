@@ -339,7 +339,37 @@ func TestGuardRunStopsOnContextCancel(t *testing.T) {
 	}
 }
 
-func TestGuardUnblockAfterCancelledByContext(t *testing.T) {
+func TestGuardExpiryLoopUnblocksExpiredIPs(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.BlockDuration = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go g.runExpiryLoop(ctx)
+
+	g.setBlocked("1.2.3.4")
+	fb.blocked["1.2.3.4"] = true
+
+	select {
+	case g.expCh <- expiryEntry{ip: "1.2.3.4", when: time.Now().Add(20 * time.Millisecond)}:
+	case <-time.After(time.Second):
+		t.Fatal("timed out sending to expCh")
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if g.IsBlocked("1.2.3.4") {
+		t.Error("expected IP to be unblocked after expiry")
+	}
+	if fb.blocked["1.2.3.4"] {
+		t.Error("expected fake blocker to have unblocked IP")
+	}
+}
+
+func TestGuardExpiryLoopStopsOnContextCancel(t *testing.T) {
 	fb := newFakeBlocker()
 	g := newTestGuard()
 	g.SetBlocker(fb)
@@ -348,16 +378,23 @@ func TestGuardUnblockAfterCancelledByContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	g.setBlocked("1.2.3.4")
-	go g.unblockAfter(ctx, "1.2.3.4", 1*time.Hour)
+	fb.blocked["1.2.3.4"] = true
+	go g.runExpiryLoop(ctx)
+
+	select {
+	case g.expCh <- expiryEntry{ip: "1.2.3.4", when: time.Now().Add(1 * time.Hour)}:
+	case <-time.After(time.Second):
+		t.Fatal("timed out sending to expCh")
+	}
 
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 
 	if !g.IsBlocked("1.2.3.4") {
-		t.Error("IP should still be blocked — unblockAfter should exit without calling Unblock on context cancel")
+		t.Error("IP should still be blocked — expiry loop should exit without unblocking on context cancel")
 	}
-	if _, ok := fb.blocked["1.2.3.4"]; ok {
-		t.Error("fake blocker should not have been called Unblock on context cancel")
+	if _, ok := fb.blocked["1.2.3.4"]; !ok {
+		t.Error("fake blocker should not have been unblocked on context cancel")
 	}
 }
 

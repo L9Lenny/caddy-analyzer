@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"os/exec"
@@ -29,22 +30,42 @@ func (iptablesBlocker) Unblock(ip string) error {
 }
 
 type Config struct {
-	Limit           int
-	AuthLimit       int
-	NotFoundLimit   int
-	Window          time.Duration
-	BlockDuration   time.Duration
-	IPValidator     func(string) error
-	OnAudit         func(action, ip, reason, duration string)
+	Limit         int
+	AuthLimit     int
+	NotFoundLimit int
+	Window        time.Duration
+	BlockDuration time.Duration
+	IPValidator   func(string) error
+	OnAudit       func(action, ip, reason, duration string)
+}
+
+type expiryEntry struct {
+	ip   string
+	when time.Time
+}
+
+type expiryHeap []expiryEntry
+
+func (h expiryHeap) Len() int            { return len(h) }
+func (h expiryHeap) Less(i, j int) bool  { return h[i].when.Before(h[j].when) }
+func (h expiryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *expiryHeap) Push(x any)         { *h = append(*h, x.(expiryEntry)) }
+func (h *expiryHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }
 
 type Guard struct {
-	mu        sync.Mutex
-	blocked   map[string]bool
-	detector  *analysis.Detector
-	engine    *analysis.Engine
-	blocker   Blocker
-	cfg       Config
+	mu       sync.Mutex
+	blocked  map[string]bool
+	detector *analysis.Detector
+	engine   *analysis.Engine
+	blocker  Blocker
+	cfg      Config
+	expCh    chan expiryEntry
 }
 
 func New(cfg Config) *Guard {
@@ -54,6 +75,7 @@ func New(cfg Config) *Guard {
 		engine:   analysis.New(types.Filters{}),
 		blocker:  iptablesBlocker{},
 		cfg:      cfg,
+		expCh:    make(chan expiryEntry, 10000),
 	}
 }
 
@@ -190,29 +212,58 @@ func (g *Guard) block(ctx context.Context, c Candidate, now time.Time) bool {
 		g.cfg.OnAudit("block", c.IP, c.Why, dur)
 	}
 	if g.cfg.BlockDuration > 0 {
-		go g.unblockAfter(ctx, c.IP, g.cfg.BlockDuration)
+		select {
+		case g.expCh <- expiryEntry{ip: c.IP, when: now.Add(g.cfg.BlockDuration)}:
+		case <-ctx.Done():
+		}
 	}
 	return true
 }
 
-func (g *Guard) unblockAfter(ctx context.Context, ip string, duration time.Duration) {
-	select {
-	case <-time.After(duration):
-	case <-ctx.Done():
-		return
-	}
-	if err := g.blocker.Unblock(ip); err != nil {
-		return
-	}
-	g.removeBlocked(ip)
-	if g.cfg.OnAudit != nil {
-		g.cfg.OnAudit("unblock", ip, "block duration expired", duration.String())
+func (g *Guard) runExpiryLoop(ctx context.Context) {
+	var h expiryHeap
+	var timer *time.Timer
+	var timerC <-chan time.Time
+
+	for {
+		if timer != nil {
+			timer.Stop()
+			timer = nil
+			timerC = nil
+		}
+		if h.Len() > 0 {
+			d := time.Until(h[0].when)
+			if d < 0 {
+				d = 0
+			}
+			timer = time.NewTimer(d)
+			timerC = timer.C
+		}
+
+		select {
+		case e := <-g.expCh:
+			heap.Push(&h, e)
+		case <-timerC:
+			for h.Len() > 0 && !h[0].when.After(time.Now()) {
+				e := heap.Pop(&h).(expiryEntry)
+				if err := g.blocker.Unblock(e.ip); err == nil {
+					g.removeBlocked(e.ip)
+					if g.cfg.OnAudit != nil {
+						g.cfg.OnAudit("unblock", e.ip, "block duration expired", g.cfg.BlockDuration.String())
+					}
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
 func (g *Guard) Run(ctx context.Context, linesCh <-chan string, logf func(string, ...interface{})) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	go g.runExpiryLoop(ctx)
 
 	ticker := time.NewTicker(g.cfg.Window)
 	defer ticker.Stop()
