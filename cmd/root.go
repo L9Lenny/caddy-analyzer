@@ -50,6 +50,8 @@ var (
 	flagCompact   bool
 )
 
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "caddy-analyze [flags] [source...]",
 	Short: "Analyze Caddy access logs from files, stdin, Docker, Kubernetes, or journalctl",
@@ -131,7 +133,7 @@ func init() {
 	flags.BoolVarP(&flagCompact, "compact", "c", false, "Compact output mode")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
-	rootCmd.Version = "0.1.3"
+	rootCmd.Version = Version
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	addHiddenCompletionCmd()
 }

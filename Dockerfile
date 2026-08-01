@@ -8,7 +8,8 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-analyze ./cmd/caddy-analyze
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X github.com/L9Lenny/caddy-analyzer/cmd.Version=${VERSION}" -o caddy-analyze ./cmd/caddy-analyze
 
 # Production Stage
 FROM alpine:3.20

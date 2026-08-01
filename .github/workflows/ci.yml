@@ -31,7 +31,7 @@ jobs:
         run: go test -race -v ./...
 
       - name: Build Binary
-        run: go build -o caddy-analyze ./cmd/caddy-analyze
+        run: go build -ldflags "-X github.com/L9Lenny/caddy-analyzer/cmd.Version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o caddy-analyze ./cmd/caddy-analyze
 
   coverage:
     name: Coverage
