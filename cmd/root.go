@@ -50,6 +50,8 @@ var (
 	flagCompact   bool
 )
 
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "caddy-analyze [flags] [source...]",
 	Short: "Analyze Caddy access logs from files, stdin, Docker, Kubernetes, or journalctl",
@@ -65,7 +67,7 @@ Sources:
 
 Subcommands:
   tail [source...]       Colorized real-time log viewer
-  top <dimension>        Quick top-N metric inspector (path, ip, ua, status, bandwidth)
+  top <dimension>        Quick top-N metric inspector (path, ip, ua, status, method, host, bandwidth)
   diff <log1> <log2>     Compare two log files for RPS shifts, 5xx spikes, and latency changes
 
 Filtering (activate colored log listing instead of report):
@@ -131,7 +133,7 @@ func init() {
 	flags.BoolVarP(&flagCompact, "compact", "c", false, "Compact output mode")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
-	rootCmd.Version = "0.1.3"
+	rootCmd.Version = Version
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	addHiddenCompletionCmd()
 }
@@ -179,7 +181,14 @@ func runAnalysis(cmd *cobra.Command, args []string) error {
 		return runWatch(ctx, sources)
 	}
 
-	interval, _ := time.ParseDuration(flagInterval)
+	var interval time.Duration
+	if flagInterval != "" {
+		d, err := time.ParseDuration(flagInterval)
+		if err != nil {
+			return fmt.Errorf("invalid --interval duration: %w", err)
+		}
+		interval = d
+	}
 	if interval > 0 {
 		return runIntervalMode(ctx, sources, filters, interval)
 	}
@@ -247,7 +256,7 @@ func runOnceMode(ctx context.Context, sources []types.LogSource, filters types.F
 		if err != nil {
 			return fmt.Errorf("create output file: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		report.SetWriter(f)
 	}
 	report.Print()

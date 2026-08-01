@@ -1,0 +1,7 @@
+# CI/CD and release pipeline
+.github/workflows/ @L9Lenny
+
+# Installers and build
+install.sh @L9Lenny
+Dockerfile @L9Lenny
+.goreleaser.yaml @L9Lenny

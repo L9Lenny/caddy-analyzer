@@ -1,29 +1,32 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
-	"sort"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
-	"github.com/L9Lenny/caddy-analyzer/pkg/parser"
+	"github.com/L9Lenny/caddy-analyzer/pkg/audit"
+	"github.com/L9Lenny/caddy-analyzer/pkg/guard"
 	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
-	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 var (
-	guardLimit      int
-	guardWindow     string
-	guardDuration   string
-	guardAuthLimit  int
+	guardLimit          int
+	guardWindow         string
+	guardDuration       string
+	guardAuthLimit     int
 	guardNotFoundLimit int
+	guardAuditLog       string
+	guardStateFile      string
+	guardNeverBlock     []string
+	guardNeverBlockFile string
 )
 
 func init() {
@@ -32,6 +35,10 @@ func init() {
 	guardCmd.Flags().StringVarP(&guardDuration, "duration", "d", "10m", "Block duration (e.g. 10m, 1h). 0 = permanent")
 	guardCmd.Flags().IntVarP(&guardAuthLimit, "auth-limit", "", 10, "Max auth failures (401/403) before blocking")
 	guardCmd.Flags().IntVarP(&guardNotFoundLimit, "notfound-limit", "", 50, "Max not found (404) before blocking")
+	guardCmd.Flags().StringVarP(&guardAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
+	guardCmd.Flags().StringVarP(&guardStateFile, "state-file", "", "/var/lib/caddy-analyzer/blocked.json", "State file for crash recovery (empty to disable)")
+	guardCmd.Flags().StringSliceVarP(&guardNeverBlock, "never-block", "", nil, "IPs/CIDRs that will never be blocked (e.g. 10.0.0.0/8,192.168.1.1)")
+	guardCmd.Flags().StringVarP(&guardNeverBlockFile, "never-block-file", "", "", "File with IPs/CIDRs to never block (one per line, # comments allowed)")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -54,6 +61,8 @@ Examples:
   caddy-analyze guard docker://my-caddy --limit 200 --window 5m
   caddy-analyze guard docker://my-caddy --duration 1h
   caddy-analyze guard k8s://caddy-pod -n production --auth-limit 5
+  caddy-analyze guard /var/log/caddy/access.log --never-block 10.0.0.0/8,192.168.1.1
+  caddy-analyze guard /var/log/caddy/access.log --never-block-file /etc/caddy-analyzer/allowlist.txt
 `,
 	Args: cobra.ArbitraryArgs,
 	RunE: runGuard,
@@ -67,7 +76,10 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid window: %w", err)
 	}
 
-	duration, _ := time.ParseDuration(guardDuration)
+	duration, err := time.ParseDuration(guardDuration)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", guardDuration, err)
+	}
 	if guardDuration == "0" || guardDuration == "" {
 		duration = 0
 	}
@@ -81,11 +93,6 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		<-sigCh
 		cancel()
 	}()
-
-	detector := analysis.NewDetector()
-	engine := analysis.New(types.Filters{})
-	ticker := time.NewTicker(window)
-	defer ticker.Stop()
 
 	linesCh := make(chan string, 10000)
 	for _, src := range sources {
@@ -105,7 +112,36 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
-	blocked := make(map[string]bool)
+	var onAudit func(action, ip, reason, duration string)
+	if guardAuditLog != "" {
+		al, err := audit.New(guardAuditLog)
+		if err != nil {
+			return fmt.Errorf("audit log: %w", err)
+		}
+		defer func() { _ = al.Close() }()
+		onAudit = al.Log
+	}
+
+	neverBlock := guardNeverBlock
+	if guardNeverBlockFile != "" {
+		ips, err := loadIPList(guardNeverBlockFile)
+		if err != nil {
+			return fmt.Errorf("never-block-file: %w", err)
+		}
+		neverBlock = append(neverBlock, ips...)
+	}
+
+	g := guard.New(guard.Config{
+		Limit:         guardLimit,
+		AuthLimit:     guardAuthLimit,
+		NotFoundLimit: guardNotFoundLimit,
+		Window:        window,
+		BlockDuration: duration,
+		IPValidator:   validateIP,
+		OnAudit:       onAudit,
+		StatePath:      guardStateFile,
+		NeverBlock:    neverBlock,
+	})
 
 	durMsg := duration.String()
 	if duration <= 0 {
@@ -115,104 +151,35 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		guardAuthLimit, guardNotFoundLimit, guardLimit, guardWindow, durMsg)
 	fmt.Fprintf(os.Stderr, "Ctrl+C to stop\n\n")
 
-	type candidate struct {
-		IP    string
-		Count int64
-		Why   string
+	logf := func(format string, args ...interface{}) {
+		fmt.Fprintf(os.Stderr, format, args...)
 	}
 
-	for {
-		select {
-		case line := <-linesCh:
-			entry, err := parser.Parse(line)
-			if err == nil && entry != nil {
-				if blocked[entry.RemoteIP] {
-					continue
-				}
-				detector.Detect(entry)
-				engine.Process(entry)
-			}
+	go g.Run(ctx, linesCh, logf)
 
-		case <-ticker.C:
-			now := time.Now()
-			s := engine.Stats()
-			ipStats := detector.IPStats()
-
-			var candidates []candidate
-			seen := make(map[string]bool)
-
-			for ip, count := range s.RemoteIPCounts {
-				if blocked[ip] {
-					continue
-				}
-				stats := ipStats[ip]
-				why := ""
-				if stats != nil && stats.AuthFailures >= guardAuthLimit {
-					why = fmt.Sprintf("%d auth failures", stats.AuthFailures)
-				} else if stats != nil && stats.NotFound >= guardNotFoundLimit {
-					why = fmt.Sprintf("%d not found", stats.NotFound)
-				} else if count >= int64(guardLimit) {
-					why = fmt.Sprintf("%d requests", count)
-				}
-				if why != "" {
-					candidates = append(candidates, candidate{ip, count, why})
-					seen[ip] = true
-				}
-			}
-
-			for ip, stats := range ipStats {
-				if blocked[ip] || seen[ip] {
-					continue
-				}
-				why := ""
-				if stats.AuthFailures >= guardAuthLimit {
-					why = fmt.Sprintf("%d auth failures", stats.AuthFailures)
-				} else if stats.NotFound >= guardNotFoundLimit {
-					why = fmt.Sprintf("%d not found", stats.NotFound)
-				}
-				if why != "" {
-					candidates = append(candidates, candidate{ip, int64(stats.Total), why})
-				}
-			}
-
-			sort.Slice(candidates, func(i, j int) bool {
-				return candidates[i].Count > candidates[j].Count
-			})
-
-			if len(candidates) > 0 {
-				for _, c := range candidates {
-					blocked[c.IP] = true
-					cmd := exec.Command("iptables", "-A", "INPUT", "-s", c.IP, "-j", "DROP")
-					if err := cmd.Run(); err != nil {
-						fmt.Fprintf(os.Stderr, "[%s] ✗ %s (%s): %v\n", now.Format("15:04:05"), c.IP, c.Why, err)
-					} else {
-						fmt.Fprintf(os.Stderr, "[%s] ✓ %s blocked (%s)\n", now.Format("15:04:05"), c.IP, c.Why)
-						if duration > 0 {
-							go unblockAfter(c.IP, duration)
-						}
-					}
-				}
-			}
-
-			detector = analysis.NewDetector()
-			engine = analysis.New(types.Filters{})
-			engine.Stats().StartTime = now
-		case <-ctx.Done():
-			fmt.Fprintln(os.Stderr, "\nGuard stopped.")
-			if len(blocked) > 0 {
-				fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", len(blocked))
-			}
-			return nil
-		}
+	<-ctx.Done()
+	fmt.Fprintln(os.Stderr, "\nGuard stopped.")
+	if n := g.Count(); n > 0 {
+		fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", n)
 	}
+	return nil
 }
 
-func unblockAfter(ip string, duration time.Duration) {
-	time.Sleep(duration)
-	cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "[unblock] ✗ %s: %v\n", ip, err)
-	} else {
-		fmt.Fprintf(os.Stderr, "[unblock] ✓ %s unblocked (duration expired)\n", ip)
+func loadIPList(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
+	defer func() { _ = f.Close() }()
+
+	var ips []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		ips = append(ips, line)
+	}
+	return ips, scanner.Err()
 }

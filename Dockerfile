@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -8,10 +8,11 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-analyze ./cmd/caddy-analyze
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X github.com/L9Lenny/caddy-analyzer/cmd.Version=${VERSION}" -o caddy-analyze ./cmd/caddy-analyze
 
 # Production Stage
-FROM alpine:latest
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 RUN apk --no-cache add ca-certificates tzdata
 

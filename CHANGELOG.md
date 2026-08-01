@@ -5,6 +5,40 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Multi-category detection**: `DetectAll()` returns all matching attack categories per request instead of stopping at the first match. Polyglot payloads (e.g. SQLi+XSS) are now classified as both.
+- **Confidence scoring**: Every detection pattern carries a 1-10 score based on specificity. Included in JSON output for filtering and prioritization.
+- **Guard audit logging**: Structured JSON-lines audit log (timestamp, action, IP, reason, duration, user) via `--audit-log` on `guard`, `block`, and `unban`. File created with `0600` permissions.
+- **Guard state persistence**: `--state-file` (default `/var/lib/caddy-analyzer/blocked.json`) survives restarts; expired entries cleaned on load.
+- **Guard IP allowlist**: `--never-block` (comma-separated IPs/CIDRs) and `--never-block-file` (file, one per line, `#` comments) prevent banning trusted IPs. Flags are merged.
+- **IP validation**: `validateIP()` accepts IPv4/IPv6/CIDR and rejects flag injection. Applied to all three iptables call sites.
+- **Version injection via ldflags**: `Version` variable populated by GoReleaser, CI, and Dockerfile.
+- **CI quality gates**: `go vet`, `golangci-lint`, `govulncheck`, coverage reporting. Actions SHA-pinned, `permissions: contents: read`. Secret scanning (gitleaks) and SAST (gosec, with G104/G204/G304 excluded as inherent to CLI design).
+- **SBOM and release signing**: SPDX JSON SBOMs via Syft, cosign keyless signature uploaded as release asset.
+- **CODEOWNERS**: Requires review on CI workflows, installers, and build config.
+
+### Fixed
+- **Regex false positives**: Removed 11 duplicate patterns, bounded 8 unbounded `.*` quantifiers, removed overly broad `/docs/` admin probe.
+- **Race condition on `blocked` map**: `sync.Mutex` protection, fixed bypass where blocked IPs weren't removed after `iptables -D`, and false-positive marking on `iptables -A` failure.
+- **`parseBlockedIPs` field index bug**: Read wrong column, returning garbage IPs.
+- **Swallowed `ParseDuration` errors**: `--duration abc` and `--interval abc` now fail instead of silently using 0 (permanent block).
+- **Goroutine leak and DoS**: `unblockAfter` now uses `select` with `ctx.Done()` (cancelled on Ctrl+C). Replaced per-IP `time.Sleep` goroutines with a single min-heap-based expiry loop.
+- **File rotation data loss**: `readFileAndFollow` detects rotation via `os.SameFile()` and reopens.
+- **`cmd.Wait()` errors ignored**: Now logged; zombie processes reaped after `Process.Kill()`.
+- **`install.sh`**: Added `set -euo pipefail` and checksum verification.
+- **Custom HTML escaper**: Replaced with `html.EscapeString` (also escapes `'`).
+- **Scanner UA list duplicates**: Removed 5 duplicate entries.
+- **Windows CI test failures**: File-permission tests now skip on Windows (Unix perms not honored). `cmd.Wait()` error explicitly discarded after `Process.Kill()`.
+
+### Changed
+- **Detection gap coverage**: 4 new pattern families (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF Java ghost bits, open redirect backslash bypass).
+- **Go 1.24 aligned** across `go.mod`, Dockerfile, CI matrix, and release workflow.
+- **Dockerfile production image pinned** to `alpine:3.20` with SHA256 digest.
+- **`listBlockedIPs` switched to `iptables -S`**: Stable one-rule-per-line format instead of locale-dependent `iptables -L`.
+- **Config file permissions tightened**: Directory `0755`→`0750`, file `0644`→`0600` (gosec G301/G306).
+
 ## [0.1.3] - 2026-07-30
 
 ### Added

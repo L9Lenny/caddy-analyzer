@@ -33,7 +33,6 @@ var (
 	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
 	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	styleInfo    = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
-	styleSuspect = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
 	styleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	styleBar     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 
@@ -185,20 +184,20 @@ func (r *Report) printTable() {
 	}
 
 	if useColor {
-		fmt.Fprintln(r.writer, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
-		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 45)))
+		_, _ = fmt.Fprintln(r.writer, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
+		_, _ = fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 45)))
 	} else {
-		fmt.Fprintln(r.writer, "CADDY LOG ANALYSIS REPORT")
-		fmt.Fprintln(r.writer, strings.Repeat("=", 45))
+		_, _ = fmt.Fprintln(r.writer, "CADDY LOG ANALYSIS REPORT")
+		_, _ = fmt.Fprintln(r.writer, strings.Repeat("=", 45))
 	}
 	if filters := r.activeFilters(); len(filters) > 0 {
 		if useColor {
-			fmt.Fprintf(r.writer, "%s %s\n", styleInfo.Render("Filters:"), strings.Join(filters, "  "))
+			_, _ = fmt.Fprintf(r.writer, "%s %s\n", styleInfo.Render("Filters:"), strings.Join(filters, "  "))
 		} else {
-			fmt.Fprintf(r.writer, "Filters: %s\n", strings.Join(filters, "  "))
+			_, _ = fmt.Fprintf(r.writer, "Filters: %s\n", strings.Join(filters, "  "))
 		}
 	}
-	fmt.Fprintln(r.writer)
+	_, _ = fmt.Fprintln(r.writer)
 
 	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
 
@@ -211,67 +210,67 @@ func (r *Report) printTable() {
 	if useColor {
 		label = styleLabel.Render("Period:")
 	}
-	fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
+	_, _ = fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
 
 	label = "Total Requests:"
 	if useColor {
 		label = styleLabel.Render("Total Requests:")
 	}
-	fmt.Fprintf(w, "%s\t%d\n", label, total)
+	_, _ = fmt.Fprintf(w, "%s\t%d\n", label, total)
 
 	label = "Requests/sec:"
 	if useColor {
 		label = styleLabel.Render("Requests/sec:")
 	}
-	fmt.Fprintf(w, "%s\t%.2f\n\n", label, r.engine.RPS())
+	_, _ = fmt.Fprintf(w, "%s\t%.2f\n\n", label, r.engine.RPS())
 
 	statusLabel := "Status Codes Breakdown"
 	if useColor {
 		statusLabel = styleLabel.Render("Status Codes Breakdown")
 	}
-	fmt.Fprintf(w, "%s:\n", statusLabel)
+	_, _ = fmt.Fprintf(w, "%s:\n", statusLabel)
 
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleOK.Render("2xx Success:"), s.Status2xx, pct(s.Status2xx, total), renderBarGraph(s.Status2xx, total, 15, useColor))
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleInfo.Render("3xx Redirect:"), s.Status3xx, pct(s.Status3xx, total), renderBarGraph(s.Status3xx, total, 15, useColor))
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleWarn.Render("4xx Client Err:"), s.Status4xx, pct(s.Status4xx, total), renderBarGraph(s.Status4xx, total, 15, useColor))
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleError.Render("5xx Server Err:"), s.Status5xx, pct(s.Status5xx, total), renderBarGraph(s.Status5xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleOK.Render("2xx Success:"), s.Status2xx, pct(s.Status2xx, total), renderBarGraph(s.Status2xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleInfo.Render("3xx Redirect:"), s.Status3xx, pct(s.Status3xx, total), renderBarGraph(s.Status3xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleWarn.Render("4xx Client Err:"), s.Status4xx, pct(s.Status4xx, total), renderBarGraph(s.Status4xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleError.Render("5xx Server Err:"), s.Status5xx, pct(s.Status5xx, total), renderBarGraph(s.Status5xx, total, 15, useColor))
 
 	errStyle := styleOK
 	if s.Errors > 0 {
 		errStyle = styleError
 	}
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", errStyle.Render("Total Errors (5xx):"), s.Errors, pct(s.Errors, total))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", errStyle.Render("Total Errors (5xx):"), s.Errors, pct(s.Errors, total))
 
 	szLabel := "Response Size & Bandwidth"
 	if useColor {
 		szLabel = styleLabel.Render("Response Size & Bandwidth")
 	}
-	fmt.Fprintf(w, "%s:\n", szLabel)
-	fmt.Fprintf(w, "  %s\t%s\n", "Total Transferred:", FormatBytes(s.TotalBytes))
-	fmt.Fprintf(w, "  %s\t%s\n\n", "Avg Response Size:", FormatBytes(avgSize(s.TotalBytes, total)))
+	_, _ = fmt.Fprintf(w, "%s:\n", szLabel)
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "Total Transferred:", FormatBytes(s.TotalBytes))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n\n", "Avg Response Size:", FormatBytes(avgSize(s.TotalBytes, total)))
 
 	durLabel := "Duration & Latency"
 	if useColor {
 		durLabel = styleLabel.Render("Duration & Latency")
 	}
-	fmt.Fprintf(w, "%s:\n", durLabel)
-	fmt.Fprintf(w, "  %s\t%s\n", "Avg Latency:", FormatDuration(r.engine.AvgDuration()))
-	fmt.Fprintf(w, "  %s\t%s\n", "Min Latency:", FormatDuration(s.MinDuration))
-	fmt.Fprintf(w, "  %s\t%s\n", "Max Latency:", FormatDuration(s.MaxDuration))
-	fmt.Fprintf(w, "  %s\t%s\n", "P50 Latency:", FormatDuration(s.Percentile50))
-	fmt.Fprintf(w, "  %s\t%s\n", "P95 Latency:", FormatDuration(s.Percentile95))
-	fmt.Fprintf(w, "  %s\t%s\n\n", "P99 Latency:", FormatDuration(s.Percentile99))
+	_, _ = fmt.Fprintf(w, "%s:\n", durLabel)
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "Avg Latency:", FormatDuration(r.engine.AvgDuration()))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "Min Latency:", FormatDuration(s.MinDuration))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "Max Latency:", FormatDuration(s.MaxDuration))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "P50 Latency:", FormatDuration(s.Percentile50))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "P95 Latency:", FormatDuration(s.Percentile95))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n\n", "P99 Latency:", FormatDuration(s.Percentile99))
 
 	botLabel := "Traffic & User-Agent Classification"
 	if useColor {
 		botLabel = styleLabel.Render("Traffic & User-Agent Classification")
 	}
-	fmt.Fprintf(w, "%s:\n", botLabel)
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", "Human Requests:", s.HumanRequests, pct(s.HumanRequests, total))
-	fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", "Bot / Crawler Requests:", s.BotRequests, pct(s.BotRequests, total))
+	_, _ = fmt.Fprintf(w, "%s:\n", botLabel)
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", "Human Requests:", s.HumanRequests, pct(s.HumanRequests, total))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", "Bot / Crawler Requests:", s.BotRequests, pct(s.BotRequests, total))
 
 	if s.ParseErrors > 0 {
-		fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
+		_, _ = fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
 	}
 
 	if r.top > 0 {
@@ -280,68 +279,68 @@ func (r *Report) printTable() {
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.PathCounts, r.top), total, useColor)
 		}
 		if r.sections.IP {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 			title := fmt.Sprintf("Top %d Remote IPs", r.top)
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.RemoteIPCounts, r.top), total, useColor)
 		}
 		if r.sections.UA {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 			title := fmt.Sprintf("Top %d User Agents", r.top)
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.UserAgentCounts, r.top), total, useColor)
 		}
 		if r.sections.Method {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 			title := fmt.Sprintf("Top %d Methods", r.top)
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.MethodCounts, r.top), total, useColor)
 		}
 		if r.sections.Status {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 			title := fmt.Sprintf("Top %d Status Codes", r.top)
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopIntN(w, analysis.TopNInt(s.StatusCounts, r.top))
 		}
 		if r.sections.Host {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 			title := fmt.Sprintf("Top %d Hosts", r.top)
 			if useColor {
 				title = styleLabel.Render(title)
 			}
-			fmt.Fprintf(w, "%s:\n", title)
+			_, _ = fmt.Fprintf(w, "%s:\n", title)
 			printTopNWithBar(w, analysis.TopN(s.HostCounts, r.top), total, useColor)
 		}
 	}
 
-	w.Flush()
+	_ = w.Flush()
 }
 
 func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
 	if useColor {
-		fmt.Fprintln(r.writer, styleHeader.Render("SECURITY THREAT INSPECTION REPORT"))
-		fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 50)))
+		_, _ = fmt.Fprintln(r.writer, styleHeader.Render("SECURITY THREAT INSPECTION REPORT"))
+		_, _ = fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 50)))
 	} else {
-		fmt.Fprintln(r.writer, "SECURITY THREAT INSPECTION REPORT")
-		fmt.Fprintln(r.writer, strings.Repeat("=", 50))
+		_, _ = fmt.Fprintln(r.writer, "SECURITY THREAT INSPECTION REPORT")
+		_, _ = fmt.Fprintln(r.writer, strings.Repeat("=", 50))
 	}
-	fmt.Fprintln(r.writer)
+	_, _ = fmt.Fprintln(r.writer)
 
 	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
 
@@ -354,49 +353,49 @@ func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
 	if useColor {
 		label = styleLabel.Render("Period:")
 	}
-	fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
+	_, _ = fmt.Fprintf(w, "%s\t%s — %s (%s)\n", label, formatTime(s.StartTime), formatTime(s.EndTime), duration)
 
 	label = "Total Analyzed:"
 	if useColor {
 		label = styleLabel.Render("Total Analyzed:")
 	}
-	fmt.Fprintf(w, "%s\t%d requests\n\n", label, total)
+	_, _ = fmt.Fprintf(w, "%s\t%d requests\n\n", label, total)
 
 	if len(s.SuspiciousIPs) > 0 {
 		alertLabel := fmt.Sprintf("[ALERT] THREAT ALERTS DETECTED (%d suspicious IPs)", len(s.SuspiciousIPs))
 		if useColor {
 			alertLabel = styleError.Render(alertLabel)
 		}
-		fmt.Fprintf(w, "%s\n", alertLabel)
+		_, _ = fmt.Fprintf(w, "%s\n", alertLabel)
 
-		fmt.Fprintf(w, "Top Offending IPs:\n")
+		_, _ = fmt.Fprintf(w, "Top Offending IPs:\n")
 		items := analysis.TopN(s.SuspiciousIPs, 10)
 		for _, item := range items {
 			ipLine := fmt.Sprintf("  - %-18s %d malicious requests", item.Key, item.Count)
 			if useColor {
 				ipLine = styleError.Render(ipLine)
 			}
-			fmt.Fprintf(w, "%s\n", ipLine)
+			_, _ = fmt.Fprintf(w, "%s\n", ipLine)
 			if details, ok := s.SuspiciousDetails[item.Key]; ok && len(details) > 0 {
 				for _, d := range details {
 					detailLine := fmt.Sprintf("       %s", d)
 					if useColor {
 						detailLine = styleWarn.Render(detailLine)
 					}
-					fmt.Fprintf(w, "%s\n", detailLine)
+					_, _ = fmt.Fprintf(w, "%s\n", detailLine)
 				}
 			}
 		}
-		fmt.Fprintf(w, "\nHint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n")
+		_, _ = fmt.Fprintf(w, "\nHint: Run 'sudo caddy-analyze guard' to auto-block malicious IPs via iptables\n")
 	} else {
 		cleanMsg := fmt.Sprintf("[OK] CLEAN: 0 security threats or scanner probes detected across %d requests", total)
 		if useColor {
 			cleanMsg = styleOK.Render(cleanMsg)
 		}
-		fmt.Fprintf(w, "%s\n", cleanMsg)
+		_, _ = fmt.Fprintf(w, "%s\n", cleanMsg)
 	}
 
-	w.Flush()
+	_ = w.Flush()
 }
 
 func (r *Report) useColor() bool {
@@ -426,9 +425,9 @@ func printTopNWithBar(w io.Writer, items []types.CountItem, total int64, useColo
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
 		bar := renderBarGraph(item.Count, total, 12, useColor)
-		fmt.Fprintf(tw, "  %d.\t%-35s\t(%d)\t%s\n", i+1, item.Key, item.Count, bar)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%-35s\t(%d)\t%s\n", i+1, item.Key, item.Count, bar)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 func (r *Report) printJSON() {
@@ -498,7 +497,7 @@ func (r *Report) printJSON() {
 
 	enc := json.NewEncoder(r.writer)
 	enc.SetIndent("", "  ")
-	enc.Encode(data)
+	_ = enc.Encode(data)
 }
 
 func (r *Report) printCSV() {
@@ -507,34 +506,34 @@ func (r *Report) printCSV() {
 
 	w := csv.NewWriter(r.writer)
 
-	w.Write([]string{"metric", "value"})
+	_ = w.Write([]string{"metric", "value"})
 	for _, fl := range r.activeFilters() {
-		w.Write([]string{"filter", fl})
+		_ = w.Write([]string{"filter", fl})
 	}
-	w.Write([]string{"total_requests", fmt.Sprintf("%d", total)})
-	w.Write([]string{"rps", fmt.Sprintf("%.2f", r.engine.RPS())})
-	w.Write([]string{"avg_duration_seconds", fmt.Sprintf("%.6f", r.engine.AvgDuration())})
-	w.Write([]string{"status_2xx", fmt.Sprintf("%d", s.Status2xx)})
-	w.Write([]string{"status_3xx", fmt.Sprintf("%d", s.Status3xx)})
-	w.Write([]string{"status_4xx", fmt.Sprintf("%d", s.Status4xx)})
-	w.Write([]string{"status_5xx", fmt.Sprintf("%d", s.Status5xx)})
-	w.Write([]string{"errors", fmt.Sprintf("%d", s.Errors)})
-	w.Write([]string{"human_requests", fmt.Sprintf("%d", s.HumanRequests)})
-	w.Write([]string{"bot_requests", fmt.Sprintf("%d", s.BotRequests)})
-	w.Write([]string{"total_bytes", fmt.Sprintf("%d", s.TotalBytes)})
-	w.Write([]string{"parse_errors", fmt.Sprintf("%d", s.ParseErrors)})
-	w.Write([]string{"duration_p50", fmt.Sprintf("%.6f", s.Percentile50)})
-	w.Write([]string{"duration_p95", fmt.Sprintf("%.6f", s.Percentile95)})
-	w.Write([]string{"duration_p99", fmt.Sprintf("%.6f", s.Percentile99)})
+	_ = w.Write([]string{"total_requests", fmt.Sprintf("%d", total)})
+	_ = w.Write([]string{"rps", fmt.Sprintf("%.2f", r.engine.RPS())})
+	_ = w.Write([]string{"avg_duration_seconds", fmt.Sprintf("%.6f", r.engine.AvgDuration())})
+	_ = w.Write([]string{"status_2xx", fmt.Sprintf("%d", s.Status2xx)})
+	_ = w.Write([]string{"status_3xx", fmt.Sprintf("%d", s.Status3xx)})
+	_ = w.Write([]string{"status_4xx", fmt.Sprintf("%d", s.Status4xx)})
+	_ = w.Write([]string{"status_5xx", fmt.Sprintf("%d", s.Status5xx)})
+	_ = w.Write([]string{"errors", fmt.Sprintf("%d", s.Errors)})
+	_ = w.Write([]string{"human_requests", fmt.Sprintf("%d", s.HumanRequests)})
+	_ = w.Write([]string{"bot_requests", fmt.Sprintf("%d", s.BotRequests)})
+	_ = w.Write([]string{"total_bytes", fmt.Sprintf("%d", s.TotalBytes)})
+	_ = w.Write([]string{"parse_errors", fmt.Sprintf("%d", s.ParseErrors)})
+	_ = w.Write([]string{"duration_p50", fmt.Sprintf("%.6f", s.Percentile50)})
+	_ = w.Write([]string{"duration_p95", fmt.Sprintf("%.6f", s.Percentile95)})
+	_ = w.Write([]string{"duration_p99", fmt.Sprintf("%.6f", s.Percentile99)})
 
 	if r.detect && len(s.SuspiciousIPs) > 0 {
-		w.Write(nil)
-		w.Write([]string{"suspicious_ips:ip", "count"})
+		_ = w.Write(nil)
+		_ = w.Write([]string{"suspicious_ips:ip", "count"})
 		for _, item := range analysis.TopN(s.SuspiciousIPs, 20) {
-			w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+			_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
 			if details, ok := s.SuspiciousDetails[item.Key]; ok {
 				for _, d := range details {
-					w.Write([]string{item.Key + ":detail", d})
+					_ = w.Write([]string{item.Key + ":detail", d})
 				}
 			}
 		}
@@ -542,17 +541,17 @@ func (r *Report) printCSV() {
 
 	if r.top > 0 {
 		if r.sections.Path {
-			w.Write(nil)
-			w.Write([]string{"top_paths:path", "count"})
+			_ = w.Write(nil)
+			_ = w.Write([]string{"top_paths:path", "count"})
 			for _, item := range analysis.TopN(s.PathCounts, r.top) {
-				w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+				_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
 			}
 		}
 		if r.sections.IP {
-			w.Write(nil)
-			w.Write([]string{"top_ips:ip", "count"})
+			_ = w.Write(nil)
+			_ = w.Write([]string{"top_ips:ip", "count"})
 			for _, item := range analysis.TopN(s.RemoteIPCounts, r.top) {
-				w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+				_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
 			}
 		}
 	}
@@ -607,20 +606,12 @@ func FormatDuration(d float64) string {
 	}
 }
 
-func printTopN(w io.Writer, items []types.CountItem) {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	for i, item := range items {
-		fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, item.Key, item.Count)
-	}
-	tw.Flush()
-}
-
 func printTopIntN(w io.Writer, items []types.CountIntItem) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
-		fmt.Fprintf(tw, "  %d.\t%d\t(%d)\n", i+1, item.Key, item.Count)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%d\t(%d)\n", i+1, item.Key, item.Count)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 func TopFieldAnalysis(engine *analysis.Engine, field types.TopField, n int) {
@@ -648,12 +639,12 @@ func printTop(w io.Writer, title string, items []types.CountItem) {
 	if len(items) == 0 {
 		return
 	}
-	fmt.Fprintf(w, "Top %s:\n", title)
+	_, _ = fmt.Fprintf(w, "Top %s:\n", title)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
-		fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, item.Key, item.Count)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, item.Key, item.Count)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 func listStatus(s int) string {
@@ -700,7 +691,7 @@ func HasEntryFilters(f types.Filters) bool {
 func PrintLogEntries(entries []*types.LogEntry, w io.Writer) {
 	for _, e := range entries {
 		if e != nil {
-			fmt.Fprintln(w, FmtLogEntry(e))
+			_, _ = fmt.Fprintln(w, FmtLogEntry(e))
 		}
 	}
 }
@@ -714,10 +705,10 @@ func printTopInt(w io.Writer, title string, items []types.CountIntItem) {
 		return items[i].Count > items[j].Count
 	})
 
-	fmt.Fprintf(w, "Top %s:\n", title)
+	_, _ = fmt.Fprintf(w, "Top %s:\n", title)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
-		fmt.Fprintf(tw, "  %d.\t%d\t(%d)\n", i+1, item.Key, item.Count)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%d\t(%d)\n", i+1, item.Key, item.Count)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }

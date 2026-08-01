@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/L9Lenny/caddy-analyzer/pkg/audit"
 )
 
 var unbanCmd = &cobra.Command{
@@ -25,10 +27,12 @@ Examples:
 
 var unbanAll bool
 var unbanList bool
+var unbanAuditLog string
 
 func init() {
 	unbanCmd.Flags().BoolVarP(&unbanAll, "all", "A", false, "Unblock all currently blocked IPs")
 	unbanCmd.Flags().BoolVarP(&unbanList, "list", "l", false, "Show currently blocked IPs")
+	unbanCmd.Flags().StringVarP(&unbanAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
 	rootCmd.AddCommand(unbanCmd)
 }
 
@@ -36,31 +40,47 @@ func runUnban(cmd *cobra.Command, args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("requires root: run with sudo")
 	}
+	var al *audit.Logger
+	if unbanAuditLog != "" {
+		var err error
+		al, err = audit.New(unbanAuditLog)
+		if err != nil {
+			return fmt.Errorf("audit log: %w", err)
+		}
+		defer func() { _ = al.Close() }()
+	}
 	if unbanList {
 		return listBlocked()
 	}
 	if unbanAll {
-		return unblockAll()
+		return unblockAll(al)
 	}
 	if len(args) == 0 {
 		return fmt.Errorf("specify at least one IP to unblock, or use --all")
 	}
-	return unblockIPs(args)
+	return unblockIPs(args, al)
 }
 
-func unblockIPs(ips []string) error {
+func unblockIPs(ips []string, al *audit.Logger) error {
 	for _, ip := range ips {
+		if err := validateIP(ip); err != nil {
+			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
+			continue
+		}
 		cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
 		} else {
 			fmt.Printf("  ✓ %s unblocked\n", ip)
+			if al != nil {
+				al.Log("unblock", ip, "manual unban", "")
+			}
 		}
 	}
 	return nil
 }
 
-func unblockAll() error {
+func unblockAll(al *audit.Logger) error {
 	ips, err := listBlockedIPs()
 	if err != nil {
 		return err
@@ -69,7 +89,7 @@ func unblockAll() error {
 		fmt.Println("No blocked IPs.")
 		return nil
 	}
-	return unblockIPs(ips)
+	return unblockIPs(ips, al)
 }
 
 func listBlocked() error {
@@ -89,29 +109,30 @@ func listBlocked() error {
 }
 
 func listBlockedIPs() ([]string, error) {
-	out, err := exec.Command("iptables", "-L", "INPUT", "-n", "--line-numbers").Output()
+	out, err := exec.Command("iptables", "-S", "INPUT").Output()
 	if err != nil {
 		return nil, fmt.Errorf("iptables: %w", err)
 	}
+	return parseBlockedIPs(string(out)), nil
+}
 
+func parseBlockedIPs(output string) []string {
 	var ips []string
-	for _, line := range strings.Split(string(out), "\n") {
-		if !strings.Contains(line, "DROP") {
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.Contains(line, "-j DROP") {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 4 {
-			continue
+		for i, f := range fields {
+			if f == "-s" && i+1 < len(fields) {
+				ip := strings.Split(fields[i+1], "/")[0]
+				if ip == "0.0.0.0" || ip == "::" {
+					continue
+				}
+				ips = append(ips, ip)
+				break
+			}
 		}
-		source := fields[3]
-		if source == "0.0.0.0/0" || source == "::/0" {
-			continue
-		}
-		ip := source
-		if idx := strings.Index(ip, "/"); idx > 0 {
-			ip = ip[:idx]
-		}
-		ips = append(ips, ip)
 	}
-	return ips, nil
+	return ips
 }

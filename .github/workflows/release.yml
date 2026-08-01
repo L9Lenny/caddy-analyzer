@@ -12,24 +12,30 @@ jobs:
     name: Run Verification Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.23'
-      - run: go test -v ./...
+          go-version: '1.24'
+      - run: go test -race -v ./...
 
   release-goreleaser:
-    name: Build & Publish Cross-Platform Static Binaries
+    name: Build, Publish & Sign
     needs: [check]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
+
+      - name: Install Syft
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -39,3 +45,21 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+
+      - name: Sign checksums with cosign (keyless)
+        run: |
+          cosign sign-blob --yes \
+            --output-certificate checksums.txt.pem \
+            --output-signature checksums.txt.sig \
+            checksums.txt
+
+      - name: Upload SBOM and signatures
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.spdx.json
+            checksums.txt.pem
+            checksums.txt.sig

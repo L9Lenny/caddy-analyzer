@@ -11,6 +11,8 @@ builds:
     binary: caddy-analyze
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/L9Lenny/caddy-analyzer/cmd.Version={{.Version}}
     goos:
       - linux
       - darwin
@@ -30,6 +32,14 @@ archives:
 
 checksum:
   name_template: "checksums.txt"
+
+sboms:
+  - id: default
+    cmd: syft
+    args: ["$artifact", "--output", "spdx-json=$document"]
+    documents:
+      - "${artifact}.spdx.json"
+    artifacts: archive
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"

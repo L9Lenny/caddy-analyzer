@@ -4,7 +4,7 @@ Thank you for your interest in contributing to `caddy-analyzer`! We welcome cont
 
 ## Development Setup
 
-1. Prerequisites: [Go](https://go.dev) (v1.22+).
+1. Prerequisites: [Go](https://go.dev) (v1.24+).
 2. Clone the repository:
    ```bash
    git clone https://github.com/L9Lenny/caddy-analyzer.git
@@ -12,7 +12,7 @@ Thank you for your interest in contributing to `caddy-analyzer`! We welcome cont
    ```
 3. Run tests:
    ```bash
-   go test -v ./...
+   go test -race ./...
    ```
 4. Build binary:
    ```bash
@@ -21,6 +21,7 @@ Thank you for your interest in contributing to `caddy-analyzer`! We welcome cont
 
 ## Pull Request Guidelines
 
-- Ensure all existing tests pass (`go test ./...`).
+- Ensure all existing tests pass (`go test -race ./...`).
 - Add unit tests for any new features or security signatures.
 - Keep commits clean and descriptive.
+- New detection patterns must include a confidence score (1-10) and pass `TestPatternUniqueness` (no duplicates).

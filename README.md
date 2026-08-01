@@ -35,17 +35,17 @@ Scans every Caddy v2 request against **22 attack categories** using a dual-pass 
 | **SQL Injection** | SQLi probes, blind injection, DB fingerprinting | `UNION SELECT`, `OR 1=1`, `pg_sleep`, `INTO OUTFILE`, `@@version` |
 | **NoSQL Injection** | MongoDB operators, JS eval injection | `$ne`, `$gt`, `$regex`, `$where`, `$nin`, `%24ne` |
 | **XSS** | Reflected/stored/DOM XSS, event handlers, protocol JS | `<script`, `onerror=`, `onfocus=`, `alert(`, `document.cookie`, `data:text/html` |
-| **SSTI** | Server-side template injection (Jinja2, Freemarker, Twig, etc.) | `__class__`, `__mro__`, `freemarker`, `nunjucks`, `{{7*7}}`, `os.popen` |
+| **SSTI** | Server-side template injection (Jinja2, Freemarker, ERB, Thymeleaf, Twig, etc.) | `__class__`, `__mro__`, `freemarker`, `nunjucks`, `{{7*7}}`, `os.popen`, `<#assign`, `<%=`, `__${...}__` |
 | **SSRF** | Cloud metadata, loopback/private IPs, protocol smuggling | `169.254.169.254`, `0x7f000001`, `gopher://`, `dict://`, `redis://` |
-| **RCE** | Shell injection, reverse shells, downloaders, LOLBins | `/bin/sh`, `whoami`, `/dev/tcp/`, `powershell`, `certutil`, `eval()` |
+| **RCE** | Shell injection, reverse shells, downloaders, LOLBins, deserialization | `/bin/sh`, `whoami`, `/dev/tcp/`, `powershell`, `certutil`, `eval()`, `rO0AB`, `_$$ND_FUNC$$_` |
 | **Path Traversal / LFI** | Directory traversal, null byte, `/proc/` filesystem, Windows system files | `../`, `..%00`, `/etc/passwd`, `/proc/self/*`, `php://input` |
 | **GraphQL Introspection** | Schema discovery queries | `__schema`, `__type`, `IntrospectionQuery` |
 | **Log4j / JNDI** | Log4Shell, JNDI lookups, env/sys access, obfuscated variants | `${jndi:ldap://`, `${env:`, `${lower:jndi`, `${::-j}` |
 | **XXE / XInclude** | XML entity expansion, external DTD, XInclude | `<!ENTITY`, `SYSTEM`, `PUBLIC`, `xi:include`, `xpointer` |
-| **Open Redirect** | URL parameter injection, protocol-relative URLs | `?url=http://`, `?redirect=//`, `//evil.com` |
+| **Open Redirect** | URL parameter injection, protocol-relative URLs, backslash bypass | `?url=http://`, `?redirect=//`, `//evil.com`, `?url=/\` |
 | **LDAP Injection** | LDAP filter manipulation | `(&(`, `(|(`, `)(|(`, URL-encoded operators |
 | **XPath Injection** | XPath query manipulation | `]\|//*`, `.//*` |
-| **CRLF / Log Injection** | HTTP response header injection, log poisoning | `%0d%0aSet-Cookie:`, `%0d%0aLocation:`, literal CRLF |
+| **CRLF / Log Injection** | HTTP response header injection, log poisoning, Java ghost bits | `%0d%0aSet-Cookie:`, `%0d%0aLocation:`, literal CRLF, `%E5%98%8A%E5%98%8D` |
 | **Prototype Pollution** | JS prototype chain tampering | `__proto__`, `constructor.prototype`, JSON payloads |
 | **SSI Injection** | Server-side include directive injection | `<!--#exec cmd=`, `#include virtual=`, `#echo var=` |
 | **LFI Wrapper Abuse** | PHP stream wrappers for file read/execution | `phar://`, `data://`, `expect://`, `compress.zlib` |
@@ -63,7 +63,7 @@ Output example:
        [scanner] Scanner / automated tool detected GET /admin
 ```
 
-> **Guard mode** (`caddy-analyze guard`) extends detection with automatic `iptables` banning — blocks offending IPs at the firewall on configurable thresholds.
+> **Guard mode** (`caddy-analyze guard`) extends detection with automatic `iptables` banning — blocks offending IPs at the firewall on configurable thresholds. Supports audit logging (`--audit-log`), state persistence across restarts (`--state-file`), and an IP allowlist (`--never-block` / `--never-block-file`) to protect trusted IPs from ever being banned.
 
 ---
 
@@ -120,8 +120,8 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 |---|---|
 | **Parsing** | Native Caddy v2 structured JSON — no regex, no config required |
 | **Security** | 22 attack categories: SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, path traversal/LFI, LFI wrapper abuse, GraphQL introspection, Log4j/JNDI, XXE/XInclude, open redirect, LDAP injection, XPath injection, CRLF injection, prototype pollution, SSI injection, sensitive file probes, WordPress probes, CGI probes, admin probes, scanner tools |
-| **Detection Accuracy** | Dual-pass engine: URL-unescaped + raw URI matching catches multibyte-encoded and double-encoded bypass attempts |
-| **Firewall** | `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds and ban duration |
+| **Detection Accuracy** | Dual-pass engine: URL-unescaped + raw URI matching catches multibyte-encoded and double-encoded bypass attempts. Confidence scoring (1-10) per detection |
+| **Firewall** | `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds, ban duration, audit logging, state persistence, and IP allowlist |
 | **Traffic Analysis** | Classifies human users vs crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers |
 | **Diff Engine** | Side-by-side comparison of two log files detecting 5xx spikes, RPS shifts, and latency regressions |
 | **TUI Dashboard** | 6-tab Bubbletea/Lipgloss interface with live streaming, security alerts, and top metrics |
@@ -161,12 +161,12 @@ caddy-analyze [flags] [source...]
 
 Subcommands:
   tail                         Stream and colorize logs in real time
-  top <dimension>              Top-N metric inspector (path, ip, ua, status, bandwidth)
+  top <dimension>              Top-N metric inspector (path, ip, ua, status, method, host, bandwidth)
   diff <baseline> <target>     Compare two log files
   guard                        Auto-block malicious IPs via iptables
   config                       Manage default log source configuration
-  block <ip...>                Manually block IP via iptables
-  unban <ip...>                Remove IP block from iptables
+  block <ip...>                Manually block IP via iptables (--audit-log)
+  unban <ip...>                Remove IP block from iptables (--all, --list, --audit-log)
 ```
 </details>
 
@@ -200,6 +200,11 @@ Subcommands:
 | `--grep` | `-g` | `""` | Search across URI, User-Agent, IP, Host |
 | `--compact` | `-c` | `false` | Compact output mode |
 | `--namespace` | `-n` | `""` | Kubernetes pod namespace |
+| `--audit-log` | | `/var/log/caddy-analyzer-audit.jsonl` | JSON-lines audit log of block/unblock actions (guard/block/unban). Empty to disable |
+| `--state-file` | | `/var/lib/caddy-analyzer/blocked.json` | Persist blocked-IP state across restarts (guard). Empty to disable |
+| `--never-block` | | `""` | Comma-separated IPs/CIDRs that should never be blocked (guard) |
+| `--never-block-file` | | `""` | File with IPs/CIDRs (one per line, `#` comments) to never block (guard) |
+| `--version` | `-v` | `false` | Print version and exit |
 </details>
 
 ---
