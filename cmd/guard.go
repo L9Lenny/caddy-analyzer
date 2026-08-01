@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"sort"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,39 @@ import (
 	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
+
+type blockState struct {
+	mu      sync.Mutex
+	blocked map[string]bool
+}
+
+func newBlockState() *blockState {
+	return &blockState{blocked: make(map[string]bool)}
+}
+
+func (b *blockState) isBlocked(ip string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.blocked[ip]
+}
+
+func (b *blockState) setBlocked(ip string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.blocked[ip] = true
+}
+
+func (b *blockState) removeBlocked(ip string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.blocked, ip)
+}
+
+func (b *blockState) count() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.blocked)
+}
 
 var (
 	guardLimit      int
@@ -105,7 +139,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
-	blocked := make(map[string]bool)
+	bs := newBlockState()
 
 	durMsg := duration.String()
 	if duration <= 0 {
@@ -126,7 +160,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		case line := <-linesCh:
 			entry, err := parser.Parse(line)
 			if err == nil && entry != nil {
-				if blocked[entry.RemoteIP] {
+				if bs.isBlocked(entry.RemoteIP) {
 					continue
 				}
 				detector.Detect(entry)
@@ -142,7 +176,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 			seen := make(map[string]bool)
 
 			for ip, count := range s.RemoteIPCounts {
-				if blocked[ip] {
+				if bs.isBlocked(ip) {
 					continue
 				}
 				stats := ipStats[ip]
@@ -161,7 +195,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 			}
 
 			for ip, stats := range ipStats {
-				if blocked[ip] || seen[ip] {
+				if bs.isBlocked(ip) || seen[ip] {
 					continue
 				}
 				why := ""
@@ -181,14 +215,15 @@ func runGuard(cmd *cobra.Command, args []string) error {
 
 			if len(candidates) > 0 {
 				for _, c := range candidates {
-					blocked[c.IP] = true
+					bs.setBlocked(c.IP)
 					cmd := exec.Command("iptables", "-A", "INPUT", "-s", c.IP, "-j", "DROP")
 					if err := cmd.Run(); err != nil {
+						bs.removeBlocked(c.IP)
 						fmt.Fprintf(os.Stderr, "[%s] ✗ %s (%s): %v\n", now.Format("15:04:05"), c.IP, c.Why, err)
 					} else {
 						fmt.Fprintf(os.Stderr, "[%s] ✓ %s blocked (%s)\n", now.Format("15:04:05"), c.IP, c.Why)
 						if duration > 0 {
-							go unblockAfter(c.IP, duration)
+							go bs.unblockAfter(c.IP, duration)
 						}
 					}
 				}
@@ -199,20 +234,21 @@ func runGuard(cmd *cobra.Command, args []string) error {
 			engine.Stats().StartTime = now
 		case <-ctx.Done():
 			fmt.Fprintln(os.Stderr, "\nGuard stopped.")
-			if len(blocked) > 0 {
-				fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", len(blocked))
+			if n := bs.count(); n > 0 {
+				fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", n)
 			}
 			return nil
 		}
 	}
 }
 
-func unblockAfter(ip string, duration time.Duration) {
+func (b *blockState) unblockAfter(ip string, duration time.Duration) {
 	time.Sleep(duration)
 	cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "[unblock] ✗ %s: %v\n", ip, err)
 	} else {
+		b.removeBlocked(ip)
 		fmt.Fprintf(os.Stderr, "[unblock] ✓ %s unblocked (duration expired)\n", ip)
 	}
 }
