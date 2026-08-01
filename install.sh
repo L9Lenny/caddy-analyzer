@@ -70,7 +70,7 @@ curl -sSfL "$CHECKSUMS_URL" -o "$TMP_DIR/checksums.txt"
 echo "[*] Verifying checksum..."
 (
     cd "$TMP_DIR"
-    grep "$ARCHIVE_NAME" checksums.txt | sha256sum -c
+    grep "$ARCHIVE_NAME$" checksums.txt | sha256sum -c
 ) || {
     echo "ERROR: checksum verification failed for $ARCHIVE_NAME" >&2
     exit 1
