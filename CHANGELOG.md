@@ -8,38 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Multi-category detection**: `DetectAll()` returns all matching attack categories per request instead of stopping at the first match. Polyglot payloads (e.g. SQLi+XSS) are now classified as both categories. `Detect()` remains as a backward-compatible wrapper.
-- **Confidence scoring**: Every detection pattern now carries a confidence score (1-10). High confidence (9-10): `UNION SELECT`, `xp_cmdshell`, `${jndi:ldap://`, reverse shell, cloud metadata. Medium (5-8): `OR 1=1`, `javascript:`, `../etc/passwd`, scanner UAs. Low (1-4): `%3C`, `%22`, `curl/wget`, generic encoding. The `Confidence` field is included in JSON output and can be used for filtering and prioritization.
-- **Guard mode refactored**: Extracted `Guard` type with `Evaluate()`, `Tick()`, `Run()` methods and `Blocker` interface for testable iptables mocking. `runGuard` is now thin orchestration. Audit logging via `OnAudit` callback. State persistence to `--state-file` (default `/var/lib/caddy-analyzer/blocked.json`) — blocked IPs and expiry timestamps survive crashes/restarts. Expired entries are cleaned up on load. IP allowlist via `--never-block` flag prevents banning gateway/proxy IPs (accepts single IPs and CIDR). `--never-block-file` loads IPs/CIDRs from a file (one per line, `#` comments supported) and is merged with `--never-block`.
-- **Audit logging**: New `pkg/audit` package with structured JSON audit log for block/unblock actions. Logs timestamp, action, IP, reason, duration, and user to file with `0600` permissions. Default path `/var/log/caddy-analyzer-audit.jsonl`, configurable via `--audit-log` flag on `guard`, `block`, and `unban` commands (pass empty string to disable).
-- **IP validation**: `validateIP()` accepts IPv4/IPv6/CIDR and rejects flag injection attempts (`--wait`, `-j DROP`). All three iptables call sites (`block`, `unban`, `guard`) validate before execution.
-- **Version injection via ldflags**: `Version` variable in `cmd` package, injected by GoReleaser, CI (`git describe`), and Dockerfile (`ARG VERSION`). No more hardcoded version strings.
-- **CI quality gates**: Added `go vet`, `golangci-lint`, `govulncheck` as blocking jobs. Coverage reporting with `-race -coverprofile`. All GitHub Actions pinned to commit SHAs. `permissions: contents: read`. Secret scanning with `gitleaks` and SAST with `gosec`.
-- **SBOM and release signing**: GoReleaser generates SPDX JSON SBOMs via Syft. `checksums.txt` signed with cosign keyless (OIDC). SBOM, certificate, and signature uploaded as release assets.
-- **CODEOWNERS**: Requires @L9Lenny review on CI workflows, installers, and build config.
-- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash), 2 guard duration/window validation tests, 3 audit logger tests, 1 guard audit callback test, 4 state persistence tests, 5 confidence scoring tests.
+- **Multi-category detection**: `DetectAll()` returns all matching attack categories per request instead of stopping at the first match. Polyglot payloads (e.g. SQLi+XSS) are now classified as both.
+- **Confidence scoring**: Every detection pattern carries a 1-10 score based on specificity. Included in JSON output for filtering and prioritization.
+- **Guard audit logging**: Structured JSON-lines audit log (timestamp, action, IP, reason, duration, user) via `--audit-log` on `guard`, `block`, and `unban`. File created with `0600` permissions.
+- **Guard state persistence**: `--state-file` (default `/var/lib/caddy-analyzer/blocked.json`) survives restarts; expired entries cleaned on load.
+- **Guard IP allowlist**: `--never-block` (comma-separated IPs/CIDRs) and `--never-block-file` (file, one per line, `#` comments) prevent banning trusted IPs. Flags are merged.
+- **IP validation**: `validateIP()` accepts IPv4/IPv6/CIDR and rejects flag injection. Applied to all three iptables call sites.
+- **Version injection via ldflags**: `Version` variable populated by GoReleaser, CI, and Dockerfile.
+- **CI quality gates**: `go vet`, `golangci-lint`, `govulncheck`, coverage reporting. Actions SHA-pinned, `permissions: contents: read`. Secret scanning (gitleaks) and SAST (gosec).
+- **SBOM and release signing**: SPDX JSON SBOMs via Syft, cosign keyless signature uploaded as release asset.
+- **CODEOWNERS**: Requires review on CI workflows, installers, and build config.
 
 ### Fixed
-- **Regex false positives and duplicate patterns**: Removed 11 exact duplicate patterns (Log4j, WordPress). Bounded 8 unbounded `.*` quantifiers (SQLi, Log4j, RCE, XXE, LFI, GraphQL, CRLF). Removed overly broad `/docs/` from admin probe.
-- **Race condition on `blocked` map in guard mode**: `sync.Mutex` protects all map access. Fixed bypass bug where `unblockAfter` didn't remove the IP from the map after `iptables -D` — attacker could strike again undetected. If `iptables -A` fails, IP is removed instead of falsely marked blocked.
-- **`parseBlockedIPs` field index bug**: `fields[3]` was reading the `--` opt column instead of `fields[4]` (source IP) — `listBlockedIPs` always returned garbage IPs.
-- **Swallowed `ParseDuration` error in guard mode**: `--duration abc` (typo) silently set duration to `0`, making blocks permanent with no warning. Now returns an error. Same fix applied to `--interval` flag.
-- **Goroutine leak in `unblockAfter`**: `time.Sleep` without context meant goroutines survived Ctrl+C and called `iptables -D` on a dead process. Now uses `select` with `ctx.Done()` — when `Run` exits, all pending `unblockAfter` goroutines are cancelled cleanly.
-- **Missing audit log for block/unban actions**: Block and unblock actions were only printed to stderr with no persistent record. Added `pkg/audit` package with structured JSON audit logging (timestamp, action, IP, reason, duration, user) to file (`/var/log/caddy-analyzer-audit.jsonl` by default, `--audit-log` flag to override). Wired into guard mode, manual `block`, and `unban` commands. File permissions `0600`.
-- **Goroutine DoS from unbounded `unblockAfter`**: Each blocked IP spawned a goroutine in `time.Sleep` — 100K IPs consumed ~800MB of stack. Replaced with a single goroutine (`runExpiryLoop`) managing a min-heap of expiry entries via `container/heap`. Only one goroutine regardless of blocked IP count.
-- **Blocked state lost on restart**: `blocked` map was in-memory only — if `guard` crashed, it lost track of which IPs it had blocked and when they should expire. Added state persistence to JSON file (`/var/lib/caddy-analyzer/blocked.json` by default). On startup, expired entries are cleaned up (unblocked via iptables) and active blocks are restored to the map and expiry heap.
-- **Log injection via X-Forwarded-For spoofing**: An attacker could spoof `X-Forwarded-For` to ban innocent IPs. IP validation (P0-3) already prevents flag injection, but an allowlist of IPs that should never be banned (gateway, proxy) was missing. Added `--never-block` flag accepting single IPs and CIDR ranges, and `--never-block-file` flag to load IPs/CIDRs from a file (one per line, `#` comments allowed). Both flags are merged.
-- **File rotation data loss**: `readFileAndFollow` now detects rotation via `os.SameFile()` (inode comparison) and reopens the file. Previously, the old fd pointed to a deleted inode and new content was lost.
-- **`cmd.Wait()` error ignored**: `execLines` now logs command exit errors and reaps zombie processes after `Process.Kill()` on context cancellation.
-- **`install.sh` without checksum verification**: Switched to `#!/usr/bin/env bash` with `set -euo pipefail`. Downloads `checksums.txt` and verifies archive with `sha256sum -c`. Trap cleanup on `INT`/`TERM` (was `EXIT` only). Removed dead `v0.1.0` fallback.
-- **`stringReplace` custom in html.go**: Replaced 13-line hand-rolled function with `html.EscapeString` from stdlib. Also escapes `'` → `&#39;` which the custom version missed.
-- **Scanner UA list duplicates**: Removed 5 duplicate entries (`nmap`, `httpx`, `acunetix`, `nessus`, `openvas`).
+- **Regex false positives**: Removed 11 duplicate patterns, bounded 8 unbounded `.*` quantifiers, removed overly broad `/docs/` admin probe.
+- **Race condition on `blocked` map**: `sync.Mutex` protection, fixed bypass where blocked IPs weren't removed after `iptables -D`, and false-positive marking on `iptables -A` failure.
+- **`parseBlockedIPs` field index bug**: Read wrong column, returning garbage IPs.
+- **Swallowed `ParseDuration` errors**: `--duration abc` and `--interval abc` now fail instead of silently using 0 (permanent block).
+- **Goroutine leak and DoS**: `unblockAfter` now uses `select` with `ctx.Done()` (cancelled on Ctrl+C). Replaced per-IP `time.Sleep` goroutines with a single min-heap-based expiry loop.
+- **File rotation data loss**: `readFileAndFollow` detects rotation via `os.SameFile()` and reopens.
+- **`cmd.Wait()` errors ignored**: Now logged; zombie processes reaped after `Process.Kill()`.
+- **`install.sh`**: Added `set -euo pipefail` and checksum verification.
+- **Custom HTML escaper**: Replaced with `html.EscapeString` (also escapes `'`).
+- **Scanner UA list duplicates**: Removed 5 duplicate entries.
 
 ### Changed
-- **Detection gap coverage**: Added 4 attack signature patterns from skill cross-validation — SSTI FreeMarker/ERB/Thymeleaf (`<#assign`, `<%=`, `__${...}__`), Java/Node deserialization fingerprints (`rO0AB`, `_$$ND_FUNC$$_`), CRLF Java ghost bits (`%E5%98%8A`/`%E5%98%8D`), open redirect backslash bypass (`?url=/\`).
-- **Go version aligned to 1.24**: `go.mod`, Dockerfile (`golang:1.24-alpine`), CI matrix, release workflow all use Go 1.24. CI matrix simplified from `['1.22', '1.23']` (couldn't build the module).
-- **Dockerfile production image pinned**: `alpine:3.20` with SHA256 digest for reproducible builds.
-- **`listBlockedIPs` switched to `iptables -S`**: Stable one-rule-per-line format instead of locale-dependent column-based `iptables -L`. Parser scans for `-s` flag instead of fixed column index.
+- **Detection gap coverage**: 4 new pattern families (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF Java ghost bits, open redirect backslash bypass).
+- **Go 1.24 aligned** across `go.mod`, Dockerfile, CI matrix, and release workflow.
+- **Dockerfile production image pinned** to `alpine:3.20` with SHA256 digest.
+- **`listBlockedIPs` switched to `iptables -S`**: Stable one-rule-per-line format instead of locale-dependent `iptables -L`.
 
 ## [0.1.3] - 2026-07-30
 
