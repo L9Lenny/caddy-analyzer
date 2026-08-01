@@ -5,6 +5,11 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **P0-1: Regex false positives and duplicate patterns** (`pkg/analysis/detect.go`): Removed 11 exact duplicate patterns (Log4j JNDI lookup/protocol/encoded lookup, WordPress content/REST/core/XML-RPC/misc/plugin/backup/sensitive probes) that matched every request twice for no reason. Bounded 8 unbounded `.*` quantifiers in SQL injection (UNION SELECT, destructive), Log4j encoded lookup, RCE command substitution, XXE internal DTD, LFI user home, GraphQL introspection/operation, CRLF header injection, and Log4j URL-encoded JNDI raw pattern — reducing false positives on legitimate English words (`selecting`, `from`, `delete`, `sleep`, `information`) and cutting CPU cost. Removed overly broad `/docs/` from admin probe (matched any documentation path). Added `TestDetectorFalsePositives` with 20 negative fixtures verifying legitimate URIs no longer trigger detections.
+
 ## [0.1.3] - 2026-07-30
 
 ### Added

@@ -643,3 +643,129 @@ func TestDetectorSignatures(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectorFalsePositives(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name string
+		uri  string
+		ua   string
+	}{
+		{
+			name: "English words 'selecting' and 'from' in path",
+			uri:  "/blog/2019/selecting-tips-from-experts",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'from' alone in path",
+			uri:  "/api/data-from-server",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'delete' without FROM in query",
+			uri:  "/products/delete-confirmation",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'sleep' as part of compound word",
+			uri:  "/help/sleep-tracking",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'information' without _schema",
+			uri:  "/search?q=information-about-cats",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Word 'export' in path",
+			uri:  "/api/v1/users/export",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate API with query params",
+			uri:  "/api/v1/users?id=42&include=profile",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate path with 'type' parameter",
+			uri:  "/search?type=products&q=laptop",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate path with 'query' parameter",
+			uri:  "/api/search?query=laptop",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate CSS request",
+			uri:  "/static/css/main.css",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate JS bundle request",
+			uri:  "/static/js/app.bundle.js",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate favicon request",
+			uri:  "/favicon.ico",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate health check",
+			uri:  "/health",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate pagination params",
+			uri:  "/products?page=2&limit=20&sort=price",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate OAuth callback",
+			uri:  "/auth/callback?code=abc123&state=xyz",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate internal redirect",
+			uri:  "/login?return=/dashboard",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate documentation path",
+			uri:  "/docs/v2/getting-started/installation",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate contact form",
+			uri:  "/contact?subject=hello",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Legitimate download endpoint",
+			uri:  "/download/file.pdf",
+			ua:   "Mozilla/5.0",
+		},
+		{
+			name: "Empty URI",
+			uri:  "/",
+			ua:   "Mozilla/5.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "192.168.1.100",
+				URI:       tt.uri,
+				UserAgent: tt.ua,
+				Status:    200,
+			}
+			det := detector.Detect(entry)
+			if det != nil {
+				t.Errorf("FALSE POSITIVE: URI %q triggered detection %s (%s)", tt.uri, det.Type, det.Desc)
+			}
+		})
+	}
+}
