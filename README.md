@@ -135,7 +135,7 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 
 ```bash
 # Linux / macOS
-curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.sh | bash
 
 # Windows (PowerShell)
 iwr -useb https://raw.githubusercontent.com/L9Lenny/caddy-analyzer/main/install.ps1 | iex

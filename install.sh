@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    echo "Error: this script requires bash. Run with: curl -sSfL <url> | bash" >&2
+    exit 1
+fi
 set -euo pipefail
 
 # caddy-analyze static binary installer

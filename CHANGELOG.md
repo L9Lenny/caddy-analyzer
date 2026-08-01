@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **GoReleaser**: Migrated `archives.format` to `archives.formats` and `format_overrides.format` to `format_overrides.formats` (deprecated since v2.6).
+- **install.sh**: Changed pipe command from `| sh` to `| bash` (script uses `pipefail`, not supported by `dash`). Added guard to detect non-bash execution with helpful error message.
 
 ## [0.2.0] - 2026-08-01
 
