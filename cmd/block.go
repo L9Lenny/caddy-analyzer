@@ -23,6 +23,10 @@ Examples:
 			return fmt.Errorf("requires root: run with sudo")
 		}
 		for _, ip := range args {
+			if err := validateIP(ip); err != nil {
+				fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
+				continue
+			}
 			c := exec.Command("iptables", "-A", "INPUT", "-s", ip, "-j", "DROP")
 			c.Stderr = os.Stderr
 			if err := c.Run(); err != nil {

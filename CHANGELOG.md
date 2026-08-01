@@ -5,6 +5,11 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **P0-3: Flag injection via unvalidated IPs in iptables calls** (`cmd/block.go`, `cmd/unban.go`, `cmd/guard.go`): Added `validateIP()` in `cmd/ip.go` — accepts IPv4, IPv6, and CIDR via `net.ParseIP`/`net.ParseCIDR`, rejects anything starting with `-` (flag injection attempts like `--wait`, `-j DROP`). All three iptables call sites now validate before execution: `block` command, `unban` command, and `guard` mode. In `guard.go`, candidates with invalid IPs are skipped with an error message instead of being passed to iptables. Added `TestValidateIP` with 28 cases covering valid IPs/CIDRs and flag injection attempts.
+
 ## [0.1.3] - 2026-07-30
 
 ### Added
