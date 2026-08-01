@@ -309,6 +309,70 @@ caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
     <h3><code>guard [source]</code> & <code>block</code> / <code>unban</code></h3>
     <p>Monitors streaming logs and automatically adds offending IP addresses to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded (<code>--limit 50 --window 1m</code>).</p>
 
+    <h4>Guard Flags</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Flag</th>
+                <th>Default</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>--limit</code></td>
+                <td><code>50</code></td>
+                <td>Max detections per IP within the window before blocking</td>
+            </tr>
+            <tr>
+                <td><code>--window</code></td>
+                <td><code>1m</code></td>
+                <td>Rolling time window for rate counting</td>
+            </tr>
+            <tr>
+                <td><code>--duration</code></td>
+                <td><code>24h</code></td>
+                <td>How long to keep an IP blocked before auto-unbanning</td>
+            </tr>
+            <tr>
+                <td><code>--auth-limit</code></td>
+                <td><code>10</code></td>
+                <td>Max failed auth (401/403) requests before blocking</td>
+            </tr>
+            <tr>
+                <td><code>--notfound-limit</code></td>
+                <td><code>20</code></td>
+                <td>Max 404 responses before blocking (directory brute-force defense)</td>
+            </tr>
+            <tr>
+                <td><code>--audit-log</code></td>
+                <td><code>""</code></td>
+                <td>Path to JSON-lines audit log recording every block/unblock action (timestamp, IP, reason, duration, user). File created with <code>0600</code> permissions. Also available on <code>block</code> and <code>unban</code> subcommands.</td>
+            </tr>
+            <tr>
+                <td><code>--state-file</code></td>
+                <td><code>""</code></td>
+                <td>Persist blocked-IP state to a JSON file so bans survive guard restarts. Expired entries are cleaned up on load.</td>
+            </tr>
+            <tr>
+                <td><code>--never-block</code></td>
+                <td><code>""</code></td>
+                <td>Comma-separated list of IPs/CIDRs that should never be blocked (e.g. <code>10.0.0.0/8,192.168.1.1</code>). Protects trusted gateways and proxies from false-positive bans.</td>
+            </tr>
+            <tr>
+                <td><code>--never-block-file</code></td>
+                <td><code>""</code></td>
+                <td>Path to a file containing IPs/CIDRs (one per line, <code>#</code> comments supported) that should never be blocked. Merged with <code>--never-block</code>.</td>
+            </tr>
+        </tbody>
+    </table>
+    <pre>sudo caddy-analyze guard --limit 50 --window 1m \
+  --audit-log /var/log/caddy-analyzer/audit.jsonl \
+  --state-file /var/lib/caddy-analyzer/blocked.json \
+  --never-block 10.0.0.0/8,192.168.1.1 \
+  --never-block-file /etc/caddy-analyzer/allowlist.txt \
+  docker://my-caddy</pre>
+
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
     </div>

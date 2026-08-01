@@ -142,7 +142,7 @@
             </tr>
             <tr>
                 <td><strong>SSTI</strong></td>
-                <td><code>__class__</code>, <code>__mro__</code>, <code>freemarker</code>, <code>nunjucks</code>, <code>{{7*7}}</code>, <code>os.popen</code></td>
+                <td><code>__class__</code>, <code>__mro__</code>, <code>freemarker</code>, <code>nunjucks</code>, <code>{{7*7}}</code>, <code>os.popen</code>, <code>&lt;#assign</code>, <code>&lt;%=</code>, <code>__${...}__</code></td>
             </tr>
             <tr>
                 <td><strong>SSRF</strong></td>
@@ -150,7 +150,7 @@
             </tr>
             <tr>
                 <td><strong>RCE</strong></td>
-                <td><code>/bin/sh</code>, <code>whoami</code>, <code>/dev/tcp/</code>, <code>powershell</code>, <code>certutil</code>, <code>eval()</code></td>
+                <td><code>/bin/sh</code>, <code>whoami</code>, <code>/dev/tcp/</code>, <code>powershell</code>, <code>certutil</code>, <code>eval()</code>, <code>rO0AB</code>, <code>_$$ND_FUNC$$_</code></td>
             </tr>
             <tr>
                 <td><strong>Path Traversal / LFI</strong></td>
@@ -170,7 +170,7 @@
             </tr>
             <tr>
                 <td><strong>Open Redirect</strong></td>
-                <td><code>?url=http://</code>, <code>?redirect=//</code>, <code>//evil.com</code></td>
+                <td><code>?url=http://</code>, <code>?redirect=//</code>, <code>//evil.com</code>, <code>?url=/\</code></td>
             </tr>
             <tr>
                 <td><strong>LDAP Injection</strong></td>
@@ -182,7 +182,7 @@
             </tr>
             <tr>
                 <td><strong>CRLF / Log Injection</strong></td>
-                <td><code>%0d%0aSet-Cookie:</code>, <code>%0d%0aLocation:</code>, literal CRLF</td>
+                <td><code>%0d%0aSet-Cookie:</code>, <code>%0d%0aLocation:</code>, literal CRLF, <code>%E5%98%8A%E5%98%8D</code></td>
             </tr>
             <tr>
                 <td><strong>Prototype Pollution</strong></td>
@@ -222,6 +222,26 @@
     <h2>4. Real-time Firewall Guard Daemon (guard)</h2>
     <p>The <code>guard</code> subcommand monitors log streams and automatically adds offending IPs to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded:</p>
     <pre>sudo caddy-analyze guard --limit 50 --window 1m docker://my-caddy</pre>
+
+    <h3>Audit Logging</h3>
+    <p>Use <code>--audit-log &lt;path&gt;</code> to record every block and unblock action as a JSON-lines file. Each entry includes timestamp, action, IP, reason, ban duration, and the user who ran the command. The file is created with <code>0600</code> permissions. Available on <code>guard</code>, <code>block</code>, and <code>unban</code> subcommands.</p>
+    <pre>sudo caddy-analyze guard --audit-log /var/log/caddy-analyzer/audit.jsonl docker://my-caddy
+# Example entry:
+{"ts":"2025-01-15T14:29:01Z","action":"block","ip":"203.0.113.5","reason":"threshold_exceeded","duration":"24h0m0s","user":"root"}</pre>
+
+    <h3>State Persistence</h3>
+    <p>Use <code>--state-file &lt;path&gt;</code> to persist blocked-IP state across guard restarts. When the guard daemon restarts, it reloads previously blocked IPs, cleans up expired bans, and resumes enforcement. Without this flag, all bans are lost on restart.</p>
+    <pre>sudo caddy-analyze guard --state-file /var/lib/caddy-analyzer/blocked.json docker://my-caddy</pre>
+
+    <h3>IP Allowlist (Never Block)</h3>
+    <p>Use <code>--never-block</code> to specify IPs/CIDRs that should never be banned, protecting trusted gateways, proxies, or health-check IPs from false-positive blocks. Use <code>--never-block-file</code> to load a larger allowlist from a file (one IP/CIDR per line, <code>#</code> comments supported). The two flags can be combined — entries are merged.</p>
+    <pre>sudo caddy-analyze guard \
+  --never-block 10.0.0.0/8,192.168.1.1 \
+  --never-block-file /etc/caddy-analyzer/allowlist.txt \
+  docker://my-caddy</pre>
+
+    <h3>Confidence Scoring</h3>
+    <p>Every detection is assigned a confidence score from 1 (low) to 10 (high) based on the specificity and reliability of the matched pattern. High-confidence patterns (e.g. <code>UNION SELECT</code>, <code>${jndi:ldap://</code>) score 9-10, while broad or ambiguous patterns (e.g. <code>onerror=</code> which can appear in legitimate payloads) score 3-5. This allows downstream consumers to filter noise and prioritize high-signal detections.</p>
 
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
