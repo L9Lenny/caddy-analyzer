@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"html"
 	"io"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
@@ -369,25 +370,7 @@ func renderActiveFiltersHTML(filters []string) string {
 }
 
 func escapeHTML(s string) string {
-	s = stringReplace(s, "&", "&amp;")
-	s = stringReplace(s, "<", "&lt;")
-	s = stringReplace(s, ">", "&gt;")
-	s = stringReplace(s, "\"", "&quot;")
-	return s
-}
-
-func stringReplace(s, old, newStr string) string {
-	var result string
-	for i := 0; i < len(s); {
-		if i+len(old) <= len(s) && s[i:i+len(old)] == old {
-			result += newStr
-			i += len(old)
-		} else {
-			result += string(s[i])
-			i++
-		}
-	}
-	return result
+	return html.EscapeString(s)
 }
 
 func writeHTML(w io.Writer, content string) {
