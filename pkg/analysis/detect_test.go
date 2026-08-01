@@ -769,3 +769,30 @@ func TestDetectorFalsePositives(t *testing.T) {
 		})
 	}
 }
+
+func TestPatternUniqueness(t *testing.T) {
+	seen := make(map[string]string)
+	dupes := 0
+
+	for i, p := range compilePatterns() {
+		key := p.re.String()
+		if prev, ok := seen[key]; ok {
+			t.Errorf("duplicate pattern: %q (desc %q) at index %d duplicates %q at index ?", key, p.desc, i, prev)
+			dupes++
+		}
+		seen[key] = p.desc
+	}
+
+	for i, p := range rawPatterns {
+		key := p.re.String()
+		if prev, ok := seen[key]; ok {
+			t.Errorf("duplicate raw pattern: %q (desc %q) at index %d duplicates %q", key, p.desc, i, prev)
+			dupes++
+		}
+		seen[key] = p.desc
+	}
+
+	if dupes > 0 {
+		t.Errorf("%d duplicate patterns detected", dupes)
+	}
+}
