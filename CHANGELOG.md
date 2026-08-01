@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Multi-category detection**: `DetectAll()` returns all matching attack categories per request instead of stopping at the first match. Polyglot payloads (e.g. SQLi+XSS) are now classified as both categories. `Detect()` remains as a backward-compatible wrapper.
-- **Guard mode refactored**: Extracted `Guard` type with `Evaluate()`, `Tick()`, `Run()` methods and `Blocker` interface for testable iptables mocking. `runGuard` is now thin orchestration.
+- **Guard mode refactored**: Extracted `Guard` type with `Evaluate()`, `Tick()`, `Run()` methods and `Blocker` interface for testable iptables mocking. `runGuard` is now thin orchestration. Audit logging via `OnAudit` callback.
+- **Audit logging**: New `pkg/audit` package with structured JSON audit log for block/unblock actions. Logs timestamp, action, IP, reason, duration, and user to file with `0600` permissions. Default path `/var/log/caddy-analyzer-audit.jsonl`, configurable via `--audit-log` flag on `guard`, `block`, and `unban` commands.
 - **IP validation**: `validateIP()` accepts IPv4/IPv6/CIDR and rejects flag injection attempts (`--wait`, `-j DROP`). All three iptables call sites (`block`, `unban`, `guard`) validate before execution.
 - **Version injection via ldflags**: `Version` variable in `cmd` package, injected by GoReleaser, CI (`git describe`), and Dockerfile (`ARG VERSION`). No more hardcoded version strings.
 - **CI quality gates**: Added `go vet`, `golangci-lint`, `govulncheck` as blocking jobs. Coverage reporting with `-race -coverprofile`. All GitHub Actions pinned to commit SHAs. `permissions: contents: read`.
 - **SBOM and release signing**: GoReleaser generates SPDX JSON SBOMs via Syft. `checksums.txt` signed with cosign keyless (OIDC). SBOM, certificate, and signature uploaded as release assets.
 - **CODEOWNERS**: Requires @L9Lenny review on CI workflows, installers, and build config.
-- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash), 2 guard duration/window validation tests.
+- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash), 2 guard duration/window validation tests, 3 audit logger tests, 1 guard audit callback test.
 
 ### Fixed
 - **Regex false positives and duplicate patterns**: Removed 11 exact duplicate patterns (Log4j, WordPress). Bounded 8 unbounded `.*` quantifiers (SQLi, Log4j, RCE, XXE, LFI, GraphQL, CRLF). Removed overly broad `/docs/` from admin probe.
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`parseBlockedIPs` field index bug**: `fields[3]` was reading the `--` opt column instead of `fields[4]` (source IP) — `listBlockedIPs` always returned garbage IPs.
 - **Swallowed `ParseDuration` error in guard mode**: `--duration abc` (typo) silently set duration to `0`, making blocks permanent with no warning. Now returns an error. Same fix applied to `--interval` flag.
 - **Goroutine leak in `unblockAfter`**: `time.Sleep` without context meant goroutines survived Ctrl+C and called `iptables -D` on a dead process. Now uses `select` with `ctx.Done()` — when `Run` exits, all pending `unblockAfter` goroutines are cancelled cleanly.
+- **Missing audit log for block/unban actions**: Block and unblock actions were only printed to stderr with no persistent record. Added `pkg/audit` package with structured JSON audit logging (timestamp, action, IP, reason, duration, user) to file (`/var/log/caddy-analyzer-audit.jsonl` by default, `--audit-log` flag to override). Wired into guard mode, manual `block`, and `unban` commands. File permissions `0600`.
 - **File rotation data loss**: `readFileAndFollow` now detects rotation via `os.SameFile()` (inode comparison) and reopens the file. Previously, the old fd pointed to a deleted inode and new content was lost.
 - **`cmd.Wait()` error ignored**: `execLines` now logs command exit errors and reaps zombie processes after `Process.Kill()` on context cancellation.
 - **`install.sh` without checksum verification**: Switched to `#!/usr/bin/env bash` with `set -euo pipefail`. Downloads `checksums.txt` and verifies archive with `sha256sum -c`. Trap cleanup on `INT`/`TERM` (was `EXIT` only). Removed dead `v0.1.0` fallback.

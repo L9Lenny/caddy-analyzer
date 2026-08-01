@@ -35,6 +35,7 @@ type Config struct {
 	Window          time.Duration
 	BlockDuration   time.Duration
 	IPValidator     func(string) error
+	OnAudit         func(action, ip, reason, duration string)
 }
 
 type Guard struct {
@@ -181,6 +182,13 @@ func (g *Guard) block(ctx context.Context, c Candidate, now time.Time) bool {
 		g.removeBlocked(c.IP)
 		return false
 	}
+	if g.cfg.OnAudit != nil {
+		dur := g.cfg.BlockDuration.String()
+		if g.cfg.BlockDuration <= 0 {
+			dur = "permanent"
+		}
+		g.cfg.OnAudit("block", c.IP, c.Why, dur)
+	}
 	if g.cfg.BlockDuration > 0 {
 		go g.unblockAfter(ctx, c.IP, g.cfg.BlockDuration)
 	}
@@ -197,6 +205,9 @@ func (g *Guard) unblockAfter(ctx context.Context, ip string, duration time.Durat
 		return
 	}
 	g.removeBlocked(ip)
+	if g.cfg.OnAudit != nil {
+		g.cfg.OnAudit("unblock", ip, "block duration expired", duration.String())
+	}
 }
 
 func (g *Guard) Run(ctx context.Context, linesCh <-chan string, logf func(string, ...interface{})) {

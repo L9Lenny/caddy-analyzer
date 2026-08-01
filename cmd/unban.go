@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/L9Lenny/caddy-analyzer/pkg/audit"
 )
 
 var unbanCmd = &cobra.Command{
@@ -25,10 +27,12 @@ Examples:
 
 var unbanAll bool
 var unbanList bool
+var unbanAuditLog string
 
 func init() {
 	unbanCmd.Flags().BoolVarP(&unbanAll, "all", "A", false, "Unblock all currently blocked IPs")
 	unbanCmd.Flags().BoolVarP(&unbanList, "list", "l", false, "Show currently blocked IPs")
+	unbanCmd.Flags().StringVarP(&unbanAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
 	rootCmd.AddCommand(unbanCmd)
 }
 
@@ -36,19 +40,28 @@ func runUnban(cmd *cobra.Command, args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("requires root: run with sudo")
 	}
+	var al *audit.Logger
+	if unbanAuditLog != "" {
+		var err error
+		al, err = audit.New(unbanAuditLog)
+		if err != nil {
+			return fmt.Errorf("audit log: %w", err)
+		}
+		defer al.Close()
+	}
 	if unbanList {
 		return listBlocked()
 	}
 	if unbanAll {
-		return unblockAll()
+		return unblockAll(al)
 	}
 	if len(args) == 0 {
 		return fmt.Errorf("specify at least one IP to unblock, or use --all")
 	}
-	return unblockIPs(args)
+	return unblockIPs(args, al)
 }
 
-func unblockIPs(ips []string) error {
+func unblockIPs(ips []string, al *audit.Logger) error {
 	for _, ip := range ips {
 		if err := validateIP(ip); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
@@ -59,12 +72,15 @@ func unblockIPs(ips []string) error {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
 		} else {
 			fmt.Printf("  ✓ %s unblocked\n", ip)
+			if al != nil {
+				al.Log("unblock", ip, "manual unban", "")
+			}
 		}
 	}
 	return nil
 }
 
-func unblockAll() error {
+func unblockAll(al *audit.Logger) error {
 	ips, err := listBlockedIPs()
 	if err != nil {
 		return err
@@ -73,7 +89,7 @@ func unblockAll() error {
 		fmt.Println("No blocked IPs.")
 		return nil
 	}
-	return unblockIPs(ips)
+	return unblockIPs(ips, al)
 }
 
 func listBlocked() error {

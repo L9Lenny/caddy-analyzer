@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/L9Lenny/caddy-analyzer/pkg/audit"
 	"github.com/L9Lenny/caddy-analyzer/pkg/guard"
 	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
 )
@@ -20,6 +21,7 @@ var (
 	guardDuration       string
 	guardAuthLimit     int
 	guardNotFoundLimit int
+	guardAuditLog       string
 )
 
 func init() {
@@ -28,6 +30,7 @@ func init() {
 	guardCmd.Flags().StringVarP(&guardDuration, "duration", "d", "10m", "Block duration (e.g. 10m, 1h). 0 = permanent")
 	guardCmd.Flags().IntVarP(&guardAuthLimit, "auth-limit", "", 10, "Max auth failures (401/403) before blocking")
 	guardCmd.Flags().IntVarP(&guardNotFoundLimit, "notfound-limit", "", 50, "Max not found (404) before blocking")
+	guardCmd.Flags().StringVarP(&guardAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -99,6 +102,16 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	var onAudit func(action, ip, reason, duration string)
+	if guardAuditLog != "" {
+		al, err := audit.New(guardAuditLog)
+		if err != nil {
+			return fmt.Errorf("audit log: %w", err)
+		}
+		defer al.Close()
+		onAudit = al.Log
+	}
+
 	g := guard.New(guard.Config{
 		Limit:         guardLimit,
 		AuthLimit:     guardAuthLimit,
@@ -106,6 +119,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		Window:        window,
 		BlockDuration: duration,
 		IPValidator:   validateIP,
+		OnAudit:       onAudit,
 	})
 
 	durMsg := duration.String()

@@ -256,6 +256,36 @@ func TestGuardBlockFailsRemovesFromBlocked(t *testing.T) {
 	}
 }
 
+func TestGuardAuditOnBlock(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.Limit = 1
+
+	var audits []struct {
+		action, ip, reason, duration string
+	}
+	g.cfg.OnAudit = func(action, ip, reason, duration string) {
+		audits = append(audits, struct {
+			action, ip, reason, duration string
+		}{action, ip, reason, duration})
+	}
+	g.cfg.BlockDuration = 0
+
+	g.Evaluate(caddyLine("1.2.3.4", "/api", "GET", 200))
+	g.Tick(context.Background())
+
+	if len(audits) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audits))
+	}
+	if audits[0].action != "block" || audits[0].ip != "1.2.3.4" {
+		t.Errorf("unexpected audit: %+v", audits[0])
+	}
+	if audits[0].duration != "permanent" {
+		t.Errorf("expected permanent duration, got %s", audits[0].duration)
+	}
+}
+
 func TestGuardTickRejectsInvalidIP(t *testing.T) {
 	fb := newFakeBlocker()
 	g := newTestGuard()
