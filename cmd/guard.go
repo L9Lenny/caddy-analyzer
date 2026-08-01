@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +26,7 @@ var (
 	guardAuditLog       string
 	guardStateFile      string
 	guardNeverBlock     []string
+	guardNeverBlockFile string
 )
 
 func init() {
@@ -35,6 +38,7 @@ func init() {
 	guardCmd.Flags().StringVarP(&guardAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
 	guardCmd.Flags().StringVarP(&guardStateFile, "state-file", "", "/var/lib/caddy-analyzer/blocked.json", "State file for crash recovery (empty to disable)")
 	guardCmd.Flags().StringSliceVarP(&guardNeverBlock, "never-block", "", nil, "IPs/CIDRs that will never be blocked (e.g. 10.0.0.0/8,192.168.1.1)")
+	guardCmd.Flags().StringVarP(&guardNeverBlockFile, "never-block-file", "", "", "File with IPs/CIDRs to never block (one per line, # comments allowed)")
 	rootCmd.AddCommand(guardCmd)
 }
 
@@ -58,6 +62,7 @@ Examples:
   caddy-analyze guard docker://my-caddy --duration 1h
   caddy-analyze guard k8s://caddy-pod -n production --auth-limit 5
   caddy-analyze guard /var/log/caddy/access.log --never-block 10.0.0.0/8,192.168.1.1
+  caddy-analyze guard /var/log/caddy/access.log --never-block-file /etc/caddy-analyzer/allowlist.txt
 `,
 	Args: cobra.ArbitraryArgs,
 	RunE: runGuard,
@@ -117,6 +122,15 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		onAudit = al.Log
 	}
 
+	neverBlock := guardNeverBlock
+	if guardNeverBlockFile != "" {
+		ips, err := loadIPList(guardNeverBlockFile)
+		if err != nil {
+			return fmt.Errorf("never-block-file: %w", err)
+		}
+		neverBlock = append(neverBlock, ips...)
+	}
+
 	g := guard.New(guard.Config{
 		Limit:         guardLimit,
 		AuthLimit:     guardAuthLimit,
@@ -126,7 +140,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		IPValidator:   validateIP,
 		OnAudit:       onAudit,
 		StatePath:      guardStateFile,
-		NeverBlock:    guardNeverBlock,
+		NeverBlock:    neverBlock,
 	})
 
 	durMsg := duration.String()
@@ -149,4 +163,23 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "IPs blocked this session: %d\n", n)
 	}
 	return nil
+}
+
+func loadIPList(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var ips []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		ips = append(ips, line)
+	}
+	return ips, scanner.Err()
 }
