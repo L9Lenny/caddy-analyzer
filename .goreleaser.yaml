@@ -33,6 +33,14 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+sboms:
+  - id: default
+    cmd: syft
+    args: ["$artifact", "--output", "spdx-json=$document"]
+    documents:
+      - "${artifact}.spdx.json"
+    artifacts: archive
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
