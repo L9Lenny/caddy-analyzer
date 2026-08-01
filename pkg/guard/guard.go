@@ -110,7 +110,7 @@ type Candidate struct {
 	Why   string
 }
 
-func (g *Guard) Tick() []Candidate {
+func (g *Guard) Tick(ctx context.Context) []Candidate {
 	now := time.Now()
 	s := g.engine.Stats()
 	ipStats := g.detector.IPStats()
@@ -163,7 +163,7 @@ func (g *Guard) Tick() []Candidate {
 				continue
 			}
 		}
-		if g.block(c, now) {
+		if g.block(ctx, c, now) {
 			blocked = append(blocked, c)
 		}
 	}
@@ -175,20 +175,24 @@ func (g *Guard) Tick() []Candidate {
 	return blocked
 }
 
-func (g *Guard) block(c Candidate, now time.Time) bool {
+func (g *Guard) block(ctx context.Context, c Candidate, now time.Time) bool {
 	g.setBlocked(c.IP)
 	if err := g.blocker.Block(c.IP); err != nil {
 		g.removeBlocked(c.IP)
 		return false
 	}
 	if g.cfg.BlockDuration > 0 {
-		go g.unblockAfter(c.IP, g.cfg.BlockDuration)
+		go g.unblockAfter(ctx, c.IP, g.cfg.BlockDuration)
 	}
 	return true
 }
 
-func (g *Guard) unblockAfter(ip string, duration time.Duration) {
-	time.Sleep(duration)
+func (g *Guard) unblockAfter(ctx context.Context, ip string, duration time.Duration) {
+	select {
+	case <-time.After(duration):
+	case <-ctx.Done():
+		return
+	}
 	if err := g.blocker.Unblock(ip); err != nil {
 		return
 	}
@@ -196,6 +200,9 @@ func (g *Guard) unblockAfter(ip string, duration time.Duration) {
 }
 
 func (g *Guard) Run(ctx context.Context, linesCh <-chan string, logf func(string, ...interface{})) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ticker := time.NewTicker(g.cfg.Window)
 	defer ticker.Stop()
 
@@ -205,7 +212,7 @@ func (g *Guard) Run(ctx context.Context, linesCh <-chan string, logf func(string
 			g.Evaluate(line)
 
 		case <-ticker.C:
-			blocked := g.Tick()
+			blocked := g.Tick(ctx)
 			now := time.Now()
 			for _, c := range blocked {
 				logf("[%s] + %s blocked (%s)\n", now.Format("15:04:05"), c.IP, c.Why)

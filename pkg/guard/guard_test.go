@@ -145,7 +145,7 @@ func TestGuardTickBlocksOnAuthThreshold(t *testing.T) {
 		g.Evaluate(caddyLine("1.2.3.4", "/login", "POST", 401))
 	}
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 1 {
 		t.Fatalf("expected 1 candidate blocked, got %d", len(blocked))
@@ -171,7 +171,7 @@ func TestGuardTickBlocksOnNotFoundThreshold(t *testing.T) {
 		g.Evaluate(caddyLine("5.6.7.8", "/nonexistent", "GET", 404))
 	}
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 1 {
 		t.Fatalf("expected 1 candidate blocked, got %d", len(blocked))
@@ -191,7 +191,7 @@ func TestGuardTickBlocksOnRequestLimit(t *testing.T) {
 		g.Evaluate(caddyLine("9.10.11.12", "/api", "GET", 200))
 	}
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 1 {
 		t.Fatalf("expected 1 candidate blocked, got %d", len(blocked))
@@ -212,7 +212,7 @@ func TestGuardTickSkipsAlreadyBlocked(t *testing.T) {
 	}
 	g.setBlocked("1.1.1.1")
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 0 {
 		t.Errorf("expected 0 candidates (already blocked), got %d", len(blocked))
@@ -230,7 +230,7 @@ func TestGuardTickResetsDetectorAndEngine(t *testing.T) {
 		t.Fatalf("expected count=3 before tick, got %d", g.Engine().Count())
 	}
 
-	g.Tick()
+	g.Tick(context.Background())
 
 	if g.Engine().Count() != 0 {
 		t.Errorf("expected count=0 after tick (reset), got %d", g.Engine().Count())
@@ -246,7 +246,7 @@ func TestGuardBlockFailsRemovesFromBlocked(t *testing.T) {
 
 	g.Evaluate(caddyLine("1.2.3.4", "/api", "GET", 200))
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 0 {
 		t.Errorf("expected 0 blocked (iptables failed), got %d", len(blocked))
@@ -265,7 +265,7 @@ func TestGuardTickRejectsInvalidIP(t *testing.T) {
 
 	g.Evaluate(caddyLine("1.2.3.4", "/api", "GET", 200))
 
-	blocked := g.Tick()
+	blocked := g.Tick(context.Background())
 
 	if len(blocked) != 0 {
 		t.Errorf("expected 0 blocked (IP rejected), got %d", len(blocked))
@@ -306,6 +306,28 @@ func TestGuardRunStopsOnContextCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("Run did not stop after context cancel")
+	}
+}
+
+func TestGuardUnblockAfterCancelledByContext(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.BlockDuration = 1 * time.Hour
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	g.setBlocked("1.2.3.4")
+	go g.unblockAfter(ctx, "1.2.3.4", 1*time.Hour)
+
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+
+	if !g.IsBlocked("1.2.3.4") {
+		t.Error("IP should still be blocked — unblockAfter should exit without calling Unblock on context cancel")
+	}
+	if _, ok := fb.blocked["1.2.3.4"]; ok {
+		t.Error("fake blocker should not have been called Unblock on context cancel")
 	}
 }
 
