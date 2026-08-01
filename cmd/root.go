@@ -67,7 +67,7 @@ Sources:
 
 Subcommands:
   tail [source...]       Colorized real-time log viewer
-  top <dimension>        Quick top-N metric inspector (path, ip, ua, status, bandwidth)
+  top <dimension>        Quick top-N metric inspector (path, ip, ua, status, method, host, bandwidth)
   diff <log1> <log2>     Compare two log files for RPS shifts, 5xx spikes, and latency changes
 
 Filtering (activate colored log listing instead of report):

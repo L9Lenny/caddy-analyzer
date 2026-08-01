@@ -18,7 +18,7 @@ var flagTopBy string
 
 var topCmd = &cobra.Command{
 	Use:   "top [dimension] [source...]",
-	Short: "Quickly display top-N metrics for a specific dimension (path, ip, ua, status, bandwidth)",
+	Short: "Quickly display top-N metrics for a specific dimension (path, ip, ua, status, method, host, bandwidth)",
 	Long: `Quickly inspect the top N requests for a specific dimension without generating a full analysis report.
 
 Dimensions:
@@ -32,7 +32,7 @@ Dimensions:
 
 Useful Flags:
   -t, --top <N>      Number of top entries to display (default: 10)
-  -b, --by <dim>     Specify dimension via flag (path, ip, ua, status, bandwidth)
+  -b, --by <dim>     Specify dimension via flag (path, ip, ua, status, method, host, bandwidth)
   --5xx              Filter only 5xx server error requests
   --slow <duration>  Filter requests taking longer than duration (e.g. 500ms, 1s)
   --no-bots          Exclude search engine crawlers and automated bots

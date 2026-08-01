@@ -33,8 +33,6 @@ const (
 	DetCRLFInjection   DetectionType = "crlf_injection"
 	DetProtoPollution  DetectionType = "prototype_pollution"
 	DetSSIInjection    DetectionType = "ssi_injection"
-	DetBruteForce      DetectionType = "brute_force"
-	DetCredScan        DetectionType = "credential_scanning"
 )
 
 type Detection struct {
