@@ -278,14 +278,14 @@ func compilePatterns() []struct {
 		"httpx", "nuclei", "ffuf", "katana", "jaeles", "arjun",
 		"dalfox", "xsstrike", "commix", "tplmap", "nosqlmap",
 		"whatweb", "wpscan", "joomscan", "droopescan",
-		"acunetix", "nessus", "openvas", "qualys", "nexpose",
+		"qualys", "nexpose",
 		"crackmapexec", "cme", "responder", "bettercap",
 		"golismero", "wapiti", "skipfish", "uniscan", "webscarab",
 		"paros", "vega", "appscan", "probely", "crashtest",
 		"metasploit", "beef", "maltego", "shodan", "censys",
 		"zgrab", "zmap", "massdns", "dnsx", "subfinder",
 		"assetfinder", "amass", "waybackurls",
-		"gau", "httprobe", "httpx", "tlsx", "nmap", "rustscan",
+		"gau", "httprobe", "tlsx", "rustscan",
 		"naabu", "maigret", "sherlock", "holehe", "socialscan",
 	}
 	scannerPat := "(?i)(" + strings.Join(scannerUAs, "|") + ")"
