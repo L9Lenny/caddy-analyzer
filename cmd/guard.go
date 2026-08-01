@@ -215,6 +215,10 @@ func runGuard(cmd *cobra.Command, args []string) error {
 
 			if len(candidates) > 0 {
 				for _, c := range candidates {
+					if err := validateIP(c.IP); err != nil {
+						fmt.Fprintf(os.Stderr, "[%s] ✗ %s (%s): %v\n", now.Format("15:04:05"), c.IP, c.Why, err)
+						continue
+					}
 					bs.setBlocked(c.IP)
 					cmd := exec.Command("iptables", "-A", "INPUT", "-s", c.IP, "-j", "DROP")
 					if err := cmd.Run(); err != nil {

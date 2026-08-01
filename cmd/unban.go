@@ -50,6 +50,10 @@ func runUnban(cmd *cobra.Command, args []string) error {
 
 func unblockIPs(ips []string) error {
 	for _, ip := range ips {
+		if err := validateIP(ip); err != nil {
+			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
+			continue
+		}
 		cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
