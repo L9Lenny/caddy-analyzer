@@ -118,7 +118,7 @@ func runGuard(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("audit log: %w", err)
 		}
-		defer al.Close()
+		defer func() { _ = al.Close() }()
 		onAudit = al.Log
 	}
 
@@ -170,7 +170,7 @@ func loadIPList(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var ips []string
 	scanner := bufio.NewScanner(f)

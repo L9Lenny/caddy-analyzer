@@ -133,7 +133,7 @@ func readFileLines(ctx context.Context, path string, out chan<- string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -152,7 +152,7 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	initialInfo, err := f.Stat()
 	if err != nil {
@@ -198,9 +198,8 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 				if err != nil {
 					return err
 				}
-				initialInfo, _ = f.Stat()
-				pos = 0
-			} else if info.Size() == pos {
+			initialInfo, _ = f.Stat()
+		} else if info.Size() == pos {
 				continue
 			}
 
@@ -301,7 +300,7 @@ func execLines(ctx context.Context, cmd *exec.Cmd, out chan string) (<-chan stri
 			select {
 			case out <- scanner.Text():
 			case <-ctx.Done():
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 				_ = cmd.Wait()
 				return
 			}

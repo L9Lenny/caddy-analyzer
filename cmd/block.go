@@ -33,7 +33,7 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("audit log: %w", err)
 			}
-			defer al.Close()
+			defer func() { _ = al.Close() }()
 		}
 		for _, ip := range args {
 			if err := validateIP(ip); err != nil {

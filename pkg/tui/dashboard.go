@@ -37,7 +37,6 @@ type Model struct {
 	width      int
 	height     int
 	current    view
-	err        error
 	stats      *types.Stats
 	rps        float64
 	recentLogs []*types.LogEntry

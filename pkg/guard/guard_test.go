@@ -6,9 +6,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
-	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
 type fakeBlocker struct {
@@ -467,6 +464,3 @@ func TestGuardExpiryLoopStopsOnContextCancel(t *testing.T) {
 	}
 }
 
-func newTestEngine() *analysis.Engine {
-	return analysis.New(types.Filters{})
-}

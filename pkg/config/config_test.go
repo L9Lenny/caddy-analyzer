@@ -61,7 +61,7 @@ func TestLoadReturnsNilWhenNoConfig(t *testing.T) {
 	defPath := filepath.Join(dir, "config", "config.json")
 
 	origLocal := LocalConfigPath()
-	defer func() { os.Symlink(origLocal, origLocal) }()
+	defer func() { _ = os.Symlink(origLocal, origLocal) }()
 	_ = localPath
 	_ = defPath
 

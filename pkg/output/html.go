@@ -3,7 +3,6 @@ package output
 import (
 	"fmt"
 	"html"
-	"io"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
@@ -27,7 +26,7 @@ func (r *Report) printHTML() {
 	html := generateHTMLReport(s, total, r.engine.RPS(), r.engine.AvgDuration(),
 		topPaths, topIPs, topUAs, topMethods, topProtos, topTLS, topBots, topReferers, topPathBytes, suspicious, r.detect, r.activeFilters(), s.SuspiciousDetails)
 
-	fmt.Fprint(r.writer, html)
+	_, _ = fmt.Fprint(r.writer, html)
 }
 
 func generateHTMLReport(
@@ -371,8 +370,4 @@ func renderActiveFiltersHTML(filters []string) string {
 
 func escapeHTML(s string) string {
 	return html.EscapeString(s)
-}
-
-func writeHTML(w io.Writer, content string) {
-	fmt.Fprint(w, content)
 }

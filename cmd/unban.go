@@ -47,7 +47,7 @@ func runUnban(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("audit log: %w", err)
 		}
-		defer al.Close()
+		defer func() { _ = al.Close() }()
 	}
 	if unbanList {
 		return listBlocked()

@@ -19,7 +19,7 @@ func TestLoggerWritesEntry(t *testing.T) {
 	}
 	al.Log("block", "1.2.3.4", "3 auth failures", "10m")
 	al.Log("unblock", "1.2.3.4", "expired", "10m")
-	al.Close()
+	_ = al.Close()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestLoggerWritesEntry(t *testing.T) {
 func TestLoggerNilSafe(t *testing.T) {
 	var l *Logger
 	l.Log("block", "1.2.3.4", "test", "1m")
-	l.Close()
+	_ = l.Close()
 }
 
 func TestLoggerFilePermissions(t *testing.T) {
@@ -73,7 +73,7 @@ func TestLoggerFilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	al.Close()
+	_ = al.Close()
 
 	info, err := os.Stat(path)
 	if err != nil {
