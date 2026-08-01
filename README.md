@@ -165,8 +165,8 @@ Subcommands:
   diff <baseline> <target>     Compare two log files
   guard                        Auto-block malicious IPs via iptables
   config                       Manage default log source configuration
-  block <ip...>                Manually block IP via iptables
-  unban <ip...>                Remove IP block from iptables
+  block <ip...>                Manually block IP via iptables (--audit-log)
+  unban <ip...>                Remove IP block from iptables (--all, --list, --audit-log)
 ```
 </details>
 
@@ -200,10 +200,11 @@ Subcommands:
 | `--grep` | `-g` | `""` | Search across URI, User-Agent, IP, Host |
 | `--compact` | `-c` | `false` | Compact output mode |
 | `--namespace` | `-n` | `""` | Kubernetes pod namespace |
-| `--audit-log` | | `""` | Write JSON audit log of block/unblock actions (guard/block/unban) |
-| `--state-file` | | `""` | Persist blocked-IP state across restarts (guard) |
+| `--audit-log` | | `/var/log/caddy-analyzer-audit.jsonl` | JSON-lines audit log of block/unblock actions (guard/block/unban). Empty to disable |
+| `--state-file` | | `/var/lib/caddy-analyzer/blocked.json` | Persist blocked-IP state across restarts (guard). Empty to disable |
 | `--never-block` | | `""` | Comma-separated IPs/CIDRs that should never be blocked (guard) |
 | `--never-block-file` | | `""` | File with IPs/CIDRs (one per line, `#` comments) to never block (guard) |
+| `--version` | `-v` | `false` | Print version and exit |
 </details>
 
 ---
