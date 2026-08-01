@@ -33,11 +33,13 @@ func (e *Engine) Process(entry *types.LogEntry) {
 	}
 
 	if e.detector != nil {
-		if det := e.detector.Detect(entry); det != nil {
+		if dets := e.detector.DetectAll(entry); len(dets) > 0 {
 			e.stats.SuspiciousIPs[entry.RemoteIP]++
-			detail := fmt.Sprintf("[%s] %s %s → %s", det.Type, det.Desc, entry.Method, entry.Path())
-			if len(e.stats.SuspiciousDetails[entry.RemoteIP]) < 10 {
-				e.stats.SuspiciousDetails[entry.RemoteIP] = append(e.stats.SuspiciousDetails[entry.RemoteIP], detail)
+			for _, det := range dets {
+				detail := fmt.Sprintf("[%s] %s %s → %s", det.Type, det.Desc, entry.Method, entry.Path())
+				if len(e.stats.SuspiciousDetails[entry.RemoteIP]) < 10 {
+					e.stats.SuspiciousDetails[entry.RemoteIP] = append(e.stats.SuspiciousDetails[entry.RemoteIP], detail)
+				}
 			}
 		}
 	}

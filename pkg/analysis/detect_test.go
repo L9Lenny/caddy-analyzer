@@ -796,3 +796,86 @@ func TestPatternUniqueness(t *testing.T) {
 		t.Errorf("%d duplicate patterns detected", dupes)
 	}
 }
+
+func TestDetectAllPolyglot(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name         string
+		entry        *types.LogEntry
+		wantTypes    []DetectionType
+		wantMinCount int
+	}{
+		{
+			name: "Polyglot SQLi + XSS payload",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/search?q=<script>alert(1)</script>%20UNION%20SELECT%20username,password%20FROM%20users",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetXSS, DetSQLInjection},
+			wantMinCount: 2,
+		},
+		{
+			name: "Polyglot SQLi + RCE (command substitution)",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/page?id=1;cat%20/etc/passwd--",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetRCE, DetPathTraversal},
+			wantMinCount: 1,
+		},
+		{
+			name: "Single attack - no duplicate types",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/products?id=1%20UNION%20SELECT%20username,password%20FROM%20users",
+				Status:   200,
+			},
+			wantTypes:    []DetectionType{DetSQLInjection},
+			wantMinCount: 1,
+		},
+		{
+			name: "Legitimate - no detections",
+			entry: &types.LogEntry{
+				RemoteIP: "1.2.3.4",
+				URI:      "/menu",
+				Status:   200,
+			},
+			wantTypes:    nil,
+			wantMinCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dets := detector.DetectAll(tt.entry)
+
+			if tt.wantMinCount == 0 {
+				if len(dets) != 0 {
+					t.Fatalf("expected 0 detections, got %d: %+v", len(dets), dets)
+				}
+				return
+			}
+
+			if len(dets) < tt.wantMinCount {
+				t.Fatalf("expected at least %d detections, got %d: %+v", tt.wantMinCount, len(dets), dets)
+			}
+
+			seen := make(map[DetectionType]bool)
+			for _, d := range dets {
+				if seen[d.Type] {
+					t.Errorf("duplicate detection type %s in results", d.Type)
+				}
+				seen[d.Type] = true
+			}
+
+			for _, want := range tt.wantTypes {
+				if !seen[want] {
+					t.Errorf("expected detection type %s not found in results: %+v", want, dets)
+				}
+			}
+		})
+	}
+}

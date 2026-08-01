@@ -319,6 +319,15 @@ func init() {
 }
 
 func (d *Detector) Detect(entry *types.LogEntry) *Detection {
+	dets := d.DetectAll(entry)
+	if len(dets) > 0 {
+		first := dets[0]
+		return &first
+	}
+	return nil
+}
+
+func (d *Detector) DetectAll(entry *types.LogEntry) []Detection {
 	rawURI := entry.URI
 	uri := rawURI
 	if unescaped, err := url.QueryUnescape(uri); err == nil {
@@ -340,31 +349,42 @@ func (d *Detector) Detect(entry *types.LogEntry) *Detection {
 		stats.NotFound++
 	}
 
+	seen := make(map[DetectionType]bool)
+	var dets []Detection
+
 	for _, p := range d.patterns {
+		if seen[p.dtype] {
+			continue
+		}
 		if p.re.MatchString(uri) || p.re.MatchString(ua) {
-			return &Detection{
+			seen[p.dtype] = true
+			dets = append(dets, Detection{
 				Type:   p.dtype,
 				IP:     entry.RemoteIP,
 				URI:    entry.URI,
 				Status: entry.Status,
 				Desc:   p.desc,
-			}
+			})
 		}
 	}
 
 	for _, p := range rawPatterns {
+		if seen[p.dtype] {
+			continue
+		}
 		if p.re.MatchString(rawURI) || p.re.MatchString(ua) {
-			return &Detection{
+			seen[p.dtype] = true
+			dets = append(dets, Detection{
 				Type:   p.dtype,
 				IP:     entry.RemoteIP,
 				URI:    entry.URI,
 				Status: entry.Status,
 				Desc:   p.desc,
-			}
+			})
 		}
 	}
 
-	return nil
+	return dets
 }
 
 func (d *Detector) IPStats() map[string]*IPDetStats {
