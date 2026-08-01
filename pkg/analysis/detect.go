@@ -146,6 +146,7 @@ func compilePatterns() []struct {
 	add(`(?i)(freemarker|nunjucks|range\.constructor|lipsum|cycler|joiner|namespace)`, DetSSTI, "SSTI: template engine globals")
 	add(`(?i)(os\.popen|os\.system|subprocess\.|subprocess\.Popen|os\.environ|os\.getenv)`, DetSSTI, "SSTI: OS command access")
 	add(`(?i)(class\.getResource|java\.lang|Runtime\.getRuntime|ProcessBuilder|javax\.script|org\.apache\.velocity)`, DetSSTI, "SSTI: Java class access")
+	add(`(?i)(<#assign\s|<#\w+\s|__\$\{.*\}__|<%=.*%>)`, DetSSTI, "SSTI: FreeMarker/ERB/Thymeleaf probe")
 
 	// RCE
 	add(`(?i)(/bin/sh|/bin/bash|/bin/zsh|/bin/dash|/bin/ksh|/bin/csh|/bin/tcsh|/bin/fish)`, DetRCE, "RCE: shell path")
@@ -162,6 +163,7 @@ func compilePatterns() []struct {
 	add(`(?i)(mail\s*\(|mb_send_mail\s*\(|imap_open\s*\()`, DetRCE, "RCE: PHP mail injection")
 	add(`(?i)(preg_replace\s*\(.*\/[eie]|mb_ereg_replace\s*\(.*\/[eie]|preg_filter\s*\(.*\/[eie])`, DetRCE, "RCE: regex eval modifier")
 	add(`(?i)(O:\d+:.*:\d+:\{|C:\d+:.*:\d+:\{|__destruct|__wakeup|__toString|__call|__callStatic|__get|__set|__invoke|__sleep|__isset|__unset)`, DetRCE, "RCE: deserialization gadget")
+	add(`(?i)(rO0AB|_\$\$ND_FUNC\$\$_)`, DetRCE, "RCE: serialized object fingerprint (Java/Node)")
 	add(`(?i)(java\.lang\.Runtime|java\.lang\.ProcessBuilder|Runtime\.getRuntime|AccessController\.doPrivileged|Unsafe\.defineClass|URLClassLoader\.newInstance)`, DetRCE, "RCE: Java runtime access")
 	add(`(?i)(\$\{.{0,200}?\}\s*\(|`+"`"+`\w+\s+`+"`"+`|\$\(.{0,200}?\)|;.{0,100}?\b(bash|sh|python|perl|ruby|php|node)\s)`, DetRCE, "RCE: command substitution")
 	add(`(?i)(cmd\.exe\s+[/\/][ck]|command\s*=\s*cmd|exec\s*=\s*cmd|wscript\.exe|cscript\.exe)`, DetRCE, "RCE: Windows command execution")
@@ -245,6 +247,7 @@ func compilePatterns() []struct {
 	// Open Redirect
 	add(`(?i)([\?&](url|redirect|next|return|ret|to|target|redirect_uri|continue|destination|callback|ref|link|path)=https?://)`, DetOpenRedirect, "Open redirect: URL parameter")
 	add(`(?i)([\?&](url|redirect|next|return|ret|to|target|redirect_uri|continue|destination|callback|ref|link|path)=//)`, DetOpenRedirect, "Open redirect: protocol-relative parameter")
+	add(`(?i)([\?&](url|redirect|next|return|ret|to|target|redirect_uri|continue|destination|callback|ref|link|path)=/\\)`, DetOpenRedirect, "Open redirect: backslash bypass")
 
 	// LDAP Injection
 	add(`(?i)(\(&\(|\(\|\(|\)\|\(|\)&\(|\(uid=\*|\(cn=\*|\(samaccountname=\*|\(userAccountControl=|\(objectClass=|\(objectCategory=)`, DetLDAPInjection, "LDAP: filter injection")
@@ -316,6 +319,7 @@ func init() {
 	addRaw(`(?i)(\.\w+://\w+\.\w+|\.\w+://\d+\.\d+\.\d+\.\d+)`, DetSSRF, "SSRF: protocol wrapper (raw URI)")
 	addRaw(`(?i)(\$%7bjndi|\$%7b.{0,100}?jndi|\$%7blower:jndi|\$%7bupper:jndi)`, DetLog4j, "Log4j: URL-encoded JNDI (raw URI)")
 	addRaw(`(?i)(%00|%0d|%0a|%0D|%0A|%09)`, DetCRLFInjection, "CRLF: encoded control char (raw URI)")
+	addRaw(`(?i)(%E5%98%8A|%E5%98%8D)`, DetCRLFInjection, "CRLF: Java ghost bits bypass (raw URI)")
 }
 
 func (d *Detector) Detect(entry *types.LogEntry) *Detection {

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CI quality gates**: Added `go vet`, `golangci-lint`, `govulncheck` as blocking jobs. Coverage reporting with `-race -coverprofile`. All GitHub Actions pinned to commit SHAs. `permissions: contents: read`.
 - **SBOM and release signing**: GoReleaser generates SPDX JSON SBOMs via Syft. `checksums.txt` signed with cosign keyless (OIDC). SBOM, certificate, and signature uploaded as release assets.
 - **CODEOWNERS**: Requires @L9Lenny review on CI workflows, installers, and build config.
-- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests.
+- **Expanded test suite**: 20 false positive fixtures, 4 polyglot detection cases, pattern uniqueness regression guard, 7 config tests, 28 IP validation cases, 13 guard tests, 10 `parseBlockedIPs` tests, 8 attack signature tests (SSTI FreeMarker/ERB/Thymeleaf, Java/Node deserialization, CRLF ghost bits, open redirect backslash).
 
 ### Fixed
 - **Regex false positives and duplicate patterns**: Removed 11 exact duplicate patterns (Log4j, WordPress). Bounded 8 unbounded `.*` quantifiers (SQLi, Log4j, RCE, XXE, LFI, GraphQL, CRLF). Removed overly broad `/docs/` from admin probe.
@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scanner UA list duplicates**: Removed 5 duplicate entries (`nmap`, `httpx`, `acunetix`, `nessus`, `openvas`).
 
 ### Changed
+- **Detection gap coverage**: Added 4 attack signature patterns from skill cross-validation — SSTI FreeMarker/ERB/Thymeleaf (`<#assign`, `<%=`, `__${...}__`), Java/Node deserialization fingerprints (`rO0AB`, `_$$ND_FUNC$$_`), CRLF Java ghost bits (`%E5%98%8A`/`%E5%98%8D`), open redirect backslash bypass (`?url=/\`).
 - **Go version aligned to 1.24**: `go.mod`, Dockerfile (`golang:1.24-alpine`), CI matrix, release workflow all use Go 1.24. CI matrix simplified from `['1.22', '1.23']` (couldn't build the module).
 - **Dockerfile production image pinned**: `alpine:3.20` with SHA256 digest for reproducible builds.
 - **`listBlockedIPs` switched to `iptables -S`**: Stable one-rule-per-line format instead of locale-dependent column-based `iptables -L`. Parser scans for `-s` flag instead of fixed column index.

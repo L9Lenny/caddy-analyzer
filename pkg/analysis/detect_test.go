@@ -417,6 +417,83 @@ func TestDetectorSignatures(t *testing.T) {
 			expectType: DetSSTI,
 		},
 		{
+			name: "SSTI - FreeMarker assign",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=<#assign cmd="exec">`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "SSTI - ERB expression",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=<%=system("id")%>`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "SSTI - Thymeleaf expression",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/page?x=__${T(java.lang.Runtime)}__`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetSSTI,
+		},
+		{
+			name: "RCE - Java deserialization base64",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/page?data=rO0ABXNyABRqYXZhLnV0aWwuU2Nhbm5lcg",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetRCE,
+		},
+		{
+			name: "RCE - Node deserialization gadget",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/api?data=_$$ND_FUNC$$_process_main",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetRCE,
+		},
+		{
+			name: "CRLF - Java ghost bits bypass",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       "/page?x=%E5%98%8A%E5%98%8DSet-Cookie:evil=1",
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetCRLFInjection,
+		},
+		{
+			name: "Open Redirect - backslash bypass",
+			entry: &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       `/r?url=/\evil.com`,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			},
+			expectDet:  true,
+			expectType: DetOpenRedirect,
+		},
+		{
 			name: "GraphQL Introspection - __schema",
 			entry: &types.LogEntry{
 				RemoteIP:  "1.2.3.4",
