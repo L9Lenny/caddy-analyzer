@@ -302,7 +302,7 @@ func execLines(ctx context.Context, cmd *exec.Cmd, out chan string) (<-chan stri
 			case out <- scanner.Text():
 			case <-ctx.Done():
 				cmd.Process.Kill()
-				cmd.Wait()
+				_ = cmd.Wait()
 				return
 			}
 		}

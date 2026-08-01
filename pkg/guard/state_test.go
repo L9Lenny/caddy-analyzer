@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -95,6 +96,9 @@ func TestStateNoStateFile(t *testing.T) {
 }
 
 func TestStateFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permissions not supported on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "blocked.json")
 

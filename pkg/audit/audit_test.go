@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,9 @@ func TestLoggerNilSafe(t *testing.T) {
 }
 
 func TestLoggerFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permissions not supported on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit.jsonl")
 

@@ -3,10 +3,14 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestCreateDefault(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permissions not supported on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "subdir", "config.json")
 
@@ -18,8 +22,8 @@ func TestCreateDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config file not created: %v", err)
 	}
-	if info.Mode().Perm() != 0644 {
-		t.Errorf("expected perm 0644, got %v", info.Mode().Perm())
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("expected perm 0600, got %v", info.Mode().Perm())
 	}
 
 	cfg, err := loadFile(path)
