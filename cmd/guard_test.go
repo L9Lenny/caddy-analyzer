@@ -1,6 +1,9 @@
 package cmd
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestRunGuardInvalidDuration(t *testing.T) {
 	old := guardDuration
@@ -21,5 +24,23 @@ func TestRunGuardInvalidWindow(t *testing.T) {
 	err := runGuard(nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid window, got nil")
+	}
+}
+
+// TestRunGuardRequiresRoot: when not running as root, guard must refuse to
+// start with a clear error so the user does not believe protection is
+// active while every BlockIP silently fails.
+func TestRunGuardRequiresRoot(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("test only meaningful when not root")
+	}
+	oldDur, oldWin := guardDuration, guardWindow
+	defer func() { guardDuration, guardWindow = oldDur, oldWin }()
+	guardDuration = "10m"
+	guardWindow = "1m"
+
+	err := runGuard(nil, nil)
+	if err == nil {
+		t.Fatal("expected root error, got nil")
 	}
 }

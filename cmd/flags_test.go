@@ -1,0 +1,253 @@
+package cmd
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestValidateFlags(t *testing.T) {
+	tests := []struct {
+		name        string
+		watch       bool
+		follow      bool
+		interval    string
+		noBots      bool
+		botsOnly    bool
+		format      string
+		wantErr     bool
+		errContains string
+	}{
+		{name: "all defaults", format: "table"},
+		{name: "watch and follow conflict", watch: true, follow: true, format: "table", wantErr: true, errContains: "mutually exclusive"},
+		{name: "watch and interval conflict", watch: true, interval: "5m", format: "table", wantErr: true, errContains: "mutually exclusive"},
+		{name: "follow and interval conflict", follow: true, interval: "5m", format: "table", wantErr: true, errContains: "mutually exclusive"},
+		{name: "no-bots and bots-only conflict", noBots: true, botsOnly: true, format: "table", wantErr: true, errContains: "mutually exclusive"},
+		{name: "unsupported format", format: "xml", wantErr: true, errContains: "unsupported --format"},
+		{name: "json format ok", format: "json"},
+		{name: "csv format ok", format: "csv"},
+		{name: "html format ok", format: "html"},
+		{name: "uppercase format ok", format: "TABLE"},
+	}
+
+	orig := func() (bool, bool, string, bool, bool, string) {
+		return flagWatch, flagFollow, flagInterval, flagNoBots, flagBotsOnly, flagFormat
+	}
+	ow, of, oi, onb, obo, ofmt := orig()
+	defer func() {
+		flagWatch, flagFollow, flagInterval, flagNoBots, flagBotsOnly, flagFormat = ow, of, oi, onb, obo, ofmt
+	}()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flagWatch, flagFollow, flagInterval = tt.watch, tt.follow, tt.interval
+			flagNoBots, flagBotsOnly, flagFormat = tt.noBots, tt.botsOnly, tt.format
+
+			err := validateFlags()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error containing %q, got %v", tt.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestBuildFiltersFromToValidation(t *testing.T) {
+	origFrom, origTo := flagFrom, flagTo
+	defer func() { flagFrom, flagTo = origFrom, origTo }()
+
+	flagFrom = "2025-01-02T00:00:00Z"
+	flagTo = "2025-01-01T00:00:00Z"
+	if _, err := buildFilters(); err == nil {
+		t.Fatal("expected error when --from is later than --to")
+	}
+
+	flagFrom = "2025-01-01T00:00:00Z"
+	flagTo = "2025-01-02T00:00:00Z"
+	if _, err := buildFilters(); err != nil {
+		t.Fatalf("expected no error for valid range, got %v", err)
+	}
+}
+
+func TestSubcommandPersistentFlagMergeNoPanic(t *testing.T) {
+	subs := []string{"tail", "top", "diff", "config", "guard", "block", "unban"}
+	for _, s := range subs {
+		sub, _, err := rootCmd.Find([]string{s})
+		if err != nil {
+			t.Fatalf("%s: Find failed: %v", s, err)
+		}
+		if sub == nil || sub.Name() != s {
+			t.Fatalf("%s: expected subcommand, got %v", s, sub)
+		}
+	}
+}
+
+func TestConfigNamespaceFlagParsing(t *testing.T) {
+	sub, args, err := rootCmd.Find([]string{"config", "k8s://test-pod", "-n", "production", "show"})
+	if err != nil {
+		t.Fatalf("Find failed: %v", err)
+	}
+	if sub == nil || sub.Name() != "config" {
+		t.Fatalf("expected config subcommand, got %v (args %v)", sub, args)
+	}
+	if err := sub.ParseFlags(args); err != nil {
+		t.Fatalf("ParseFlags failed: %v", err)
+	}
+	if got := sub.Flag("namespace").Value.String(); got != "production" {
+		t.Fatalf("expected namespace=production, got %q", got)
+	}
+}
+
+func TestSubcommandInheritsPersistentFlags(t *testing.T) {
+	for _, s := range []string{"top", "diff", "tail"} {
+		sub, _, err := rootCmd.Find([]string{s, "--format", "json", "--output", "x.json", "--top", "5"})
+		if err != nil {
+			t.Fatalf("%s: Find failed: %v", s, err)
+		}
+		if f := sub.Flag("format"); f == nil {
+			t.Fatalf("%s: expected inherited --format flag", s)
+		}
+		if f := sub.Flag("output"); f == nil {
+			t.Fatalf("%s: expected inherited --output flag", s)
+		}
+		if f := sub.Flag("top"); f == nil {
+			t.Fatalf("%s: expected inherited --top flag", s)
+		}
+	}
+}
+
+func TestSharedFlagsParsing(t *testing.T) {
+	sub, args, err := rootCmd.Find([]string{"diff", "--from", "2025-01-01T00:00:00Z", "--to", "2025-01-02T00:00:00Z", "-c"})
+	if err != nil {
+		t.Fatalf("Find failed: %v", err)
+	}
+	if err := sub.ParseFlags(args); err != nil {
+		t.Fatalf("ParseFlags failed: %v", err)
+	}
+	if f := sub.Flag("compact"); f == nil || f.Value.String() != "true" {
+		t.Fatalf("expected compact=true, got %v", f)
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int64
+		err  bool
+	}{
+		{"512", 512, false},
+		{"1kb", 1 << 10, false},
+		{"1KB", 1 << 10, false},
+		{"1mb", 1 << 20, false},
+		{"2gb", 2 << 30, false},
+		{"1k", 1 << 10, false},
+		{"2m", 2 << 20, false},
+		{"3g", 3 << 30, false},
+		{"", 0, true},
+		{"abc", 0, true},
+		{"-1kb", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, err := parseSize(tt.in)
+			if tt.err {
+				if err == nil {
+					t.Fatalf("expected error for %q, got %d", tt.in, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tt.in, err)
+			}
+			if got != tt.want {
+				t.Errorf("parseSize(%q) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildFiltersSizeAndLatency(t *testing.T) {
+	origSlow, origMaxLat, origMin, origMax := flagSlow, flagMaxLatency, flagMinSize, flagMaxSize
+	defer func() { flagSlow, flagMaxLatency, flagMinSize, flagMaxSize = origSlow, origMaxLat, origMin, origMax }()
+
+	// Valid: min-size + max-size + max-latency wired through.
+	flagSlow = "100ms"
+	flagMaxLatency = "1s"
+	flagMinSize = "1kb"
+	flagMaxSize = "1mb"
+	f, err := buildFilters()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if f.MinSize != 1<<10 {
+		t.Errorf("MinSize = %d, want %d", f.MinSize, 1<<10)
+	}
+	if f.MaxSize != 1<<20 {
+		t.Errorf("MaxSize = %d, want %d", f.MaxSize, 1<<20)
+	}
+	if f.MinLatency <= 0 || f.MaxLatency <= 0 {
+		t.Errorf("latency not set: min=%v max=%v", f.MinLatency, f.MaxLatency)
+	}
+	if f.MinLatency > f.MaxLatency {
+		t.Errorf("min latency %v > max latency %v", f.MinLatency, f.MaxLatency)
+	}
+
+	// min-size > max-size must error.
+	flagSlow, flagMaxLatency = "", ""
+	flagMinSize = "2mb"
+	flagMaxSize = "1mb"
+	if _, err := buildFilters(); err == nil {
+		t.Fatal("expected error when --min-size > --max-size")
+	}
+
+	// slow > max-latency must error.
+	flagMinSize, flagMaxSize = "", ""
+	flagSlow = "2s"
+	flagMaxLatency = "1s"
+	if _, err := buildFilters(); err == nil {
+		t.Fatal("expected error when --slow > --max-latency")
+	}
+
+	// Bad size must error.
+	flagSlow, flagMaxLatency = "", ""
+	flagMinSize = "not-a-size"
+	if _, err := buildFilters(); err == nil {
+		t.Fatal("expected error for invalid --min-size")
+	}
+}
+
+func TestBuildFiltersHost(t *testing.T) {
+	origHost := flagHost
+	defer func() { flagHost = origHost }()
+
+	flagHost = "api.example.com"
+	f, err := buildFilters()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.Host != "api.example.com" {
+		t.Errorf("Host = %q, want api.example.com", f.Host)
+	}
+}
+
+func TestHelpTextCategoryCount(t *testing.T) {
+	if !strings.Contains(rootCmd.Long, "26 attack categories") {
+		t.Errorf("root help: expected '26 attack categories', got Long=%q", rootCmd.Long)
+	}
+	if strings.Contains(rootCmd.Long, "22 attack categories") || strings.Contains(rootCmd.Long, "23 attack categories") {
+		t.Errorf("root help: still says old category count")
+	}
+	if !strings.Contains(guardCmd.Long, "26 categories") {
+		t.Errorf("guard help: expected '26 categories', got Long=%q", guardCmd.Long)
+	}
+	if strings.Contains(guardCmd.Long, "22 categories") || strings.Contains(guardCmd.Long, "23 categories") {
+		t.Errorf("guard help: still says old category count")
+	}
+}

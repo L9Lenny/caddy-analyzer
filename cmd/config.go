@@ -76,6 +76,9 @@ func showConfig() error {
 
 	fmt.Printf("Active Config File: %s\n", path)
 	fmt.Printf("Default Log Source: %s\n", cfg.Source)
+	if cfg.Namespace != "" {
+		fmt.Printf("Kubernetes Namespace: %s\n", cfg.Namespace)
+	}
 	return nil
 }
 
@@ -91,7 +94,7 @@ func setConfig(source string) error {
 		path = config.LocalConfigPath()
 	}
 
-	cfg := config.Config{Source: source}
+	cfg := config.Config{Source: source, Namespace: flagK8sNS}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
@@ -110,6 +113,9 @@ func setConfig(source string) error {
 
 	fmt.Printf("Config saved: %s\n", path)
 	fmt.Printf("  Default log source set to: %s\n", source)
+	if flagK8sNS != "" {
+		fmt.Printf("  Kubernetes namespace: %s\n", flagK8sNS)
+	}
 	return nil
 }
 

@@ -3,18 +3,20 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/audit"
+	"github.com/L9Lenny/caddy-analyzer/pkg/guard"
 )
 
 var unbanCmd = &cobra.Command{
 	Use:   "unban <ip> [ip...]",
 	Short: "Remove IP from firewall",
 	Long: `Remove one or more IPs from the firewall (iptables).
+
+Manual unbans are also reflected in the guard state file (if --state-file is
+set) so the guard does not re-block the IP on restart.
 
 Examples:
   caddy-analyze unban 192.168.1.1
@@ -25,18 +27,25 @@ Examples:
 	RunE: runUnban,
 }
 
-var unbanAll bool
-var unbanList bool
-var unbanAuditLog string
+var (
+	unbanAll       bool
+	unbanList      bool
+	unbanAuditLog  string
+	unbanStateFile string
+)
 
 func init() {
 	unbanCmd.Flags().BoolVarP(&unbanAll, "all", "A", false, "Unblock all currently blocked IPs")
 	unbanCmd.Flags().BoolVarP(&unbanList, "list", "l", false, "Show currently blocked IPs")
 	unbanCmd.Flags().StringVarP(&unbanAuditLog, "audit-log", "", "/var/log/caddy-analyzer-audit.jsonl", "Audit log path (empty to disable)")
+	unbanCmd.Flags().StringVarP(&unbanStateFile, "state-file", "", "/var/lib/caddy-analyzer/blocked.json", "Guard state file to sync manual unbans (empty to disable)")
 	rootCmd.AddCommand(unbanCmd)
 }
 
 func runUnban(cmd *cobra.Command, args []string) error {
+	if unbanAll && unbanList {
+		return fmt.Errorf("--all and --list are mutually exclusive")
+	}
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("requires root: run with sudo")
 	}
@@ -62,26 +71,36 @@ func runUnban(cmd *cobra.Command, args []string) error {
 }
 
 func unblockIPs(ips []string, al *audit.Logger) error {
+	hadErr := false
 	for _, ip := range ips {
 		if err := validateIP(ip); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
+			hadErr = true
 			continue
 		}
-		cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
-		if err := cmd.Run(); err != nil {
+		if err := guard.UnblockIP(ip); err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", ip, err)
-		} else {
-			fmt.Printf("  ✓ %s unblocked\n", ip)
-			if al != nil {
-				al.Log("unblock", ip, "manual unban", "")
+			hadErr = true
+			continue
+		}
+		fmt.Printf("  ✓ %s unblocked\n", ip)
+		if al != nil {
+			al.Log("unblock", ip, "manual unban", "")
+		}
+		if unbanStateFile != "" {
+			if err := guard.RemoveBlockFromState(unbanStateFile, ip); err != nil {
+				fmt.Fprintf(os.Stderr, "  ⚠ %s: state sync: %v\n", ip, err)
 			}
 		}
+	}
+	if hadErr {
+		return fmt.Errorf("one or more IPs failed to unblock")
 	}
 	return nil
 }
 
 func unblockAll(al *audit.Logger) error {
-	ips, err := listBlockedIPs()
+	ips, err := guard.ListBlockedIPs()
 	if err != nil {
 		return err
 	}
@@ -93,7 +112,7 @@ func unblockAll(al *audit.Logger) error {
 }
 
 func listBlocked() error {
-	ips, err := listBlockedIPs()
+	ips, err := guard.ListBlockedIPs()
 	if err != nil {
 		return err
 	}
@@ -106,33 +125,4 @@ func listBlocked() error {
 		fmt.Printf("  %s\n", ip)
 	}
 	return nil
-}
-
-func listBlockedIPs() ([]string, error) {
-	out, err := exec.Command("iptables", "-S", "INPUT").Output()
-	if err != nil {
-		return nil, fmt.Errorf("iptables: %w", err)
-	}
-	return parseBlockedIPs(string(out)), nil
-}
-
-func parseBlockedIPs(output string) []string {
-	var ips []string
-	for _, line := range strings.Split(output, "\n") {
-		if !strings.Contains(line, "-j DROP") {
-			continue
-		}
-		fields := strings.Fields(line)
-		for i, f := range fields {
-			if f == "-s" && i+1 < len(fields) {
-				ip := strings.Split(fields[i+1], "/")[0]
-				if ip == "0.0.0.0" || ip == "::" {
-					continue
-				}
-				ips = append(ips, ip)
-				break
-			}
-		}
-	}
-	return ips
 }

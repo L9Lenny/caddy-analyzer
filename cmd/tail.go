@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/charmbracelet/lipgloss"
@@ -13,7 +13,6 @@ import (
 	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
 	"github.com/L9Lenny/caddy-analyzer/pkg/output"
 	"github.com/L9Lenny/caddy-analyzer/pkg/parser"
-	"github.com/L9Lenny/caddy-analyzer/pkg/reader"
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
@@ -25,7 +24,51 @@ var (
 	styleTailDim  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	styleTailIP   = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
 	styleTailPath = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+	// IP colors by severity — the IP itself changes color to signal danger
+	styleIPCritical = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	styleIPHigh     = lipgloss.NewStyle().Foreground(lipgloss.Color("160")).Bold(true)
+	styleIPMedium   = lipgloss.NewStyle().Foreground(lipgloss.Color("172"))
+	styleIPLow      = lipgloss.NewStyle().Foreground(lipgloss.Color("100"))
+
+	// Threat type suffix — dim arrow + colored types
+	styleThreatArrow = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleThreatCrit  = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	styleThreatHigh  = lipgloss.NewStyle().Foreground(lipgloss.Color("160")).Bold(true)
+	styleThreatMed   = lipgloss.NewStyle().Foreground(lipgloss.Color("172"))
+	styleThreatLow   = lipgloss.NewStyle().Foreground(lipgloss.Color("100"))
 )
+
+var tailDetectLabels = map[analysis.DetectionType]string{
+	analysis.DetSQLInjection:   "SQLi",
+	analysis.DetNoSQLi:         "NoSQLi",
+	analysis.DetXSS:            "XSS",
+	analysis.DetPathTraversal:  "LFI",
+	analysis.DetLog4j:          "Log4j",
+	analysis.DetRCE:            "RCE",
+	analysis.DetSSRF:           "SSRF",
+	analysis.DetSSTI:           "SSTI",
+	analysis.DetXXE:            "XXE",
+	analysis.DetLFIWrapper:     "WRAP",
+	analysis.DetCRLFInjection:  "CRLF",
+	analysis.DetLDAPInjection:  "LDAP",
+	analysis.DetXPathInjection: "XPath",
+	analysis.DetProtoPollution: "Proto",
+	analysis.DetSSIInjection:   "SSI",
+	analysis.DetGraphQL:        "GQL",
+	analysis.DetOpenRedirect:   "Redir",
+	analysis.DetWPProbe:        "WP",
+	analysis.DetCGIProbe:       "CGI",
+	analysis.DetSensitiveFile:  "Secret",
+	analysis.DetAdminProbe:     "Admin",
+	analysis.DetScanner:        "SCAN",
+	analysis.DetJWTAbuse:       "JWT",
+	analysis.DetBeaconing:      "Beacon",
+	analysis.DetObjectEnum:     "Enum",
+	analysis.DetUARotation:     "UARot",
+}
+
+var tailDetect bool
 
 var tailCmd = &cobra.Command{
 	Use:   "tail [source...]",
@@ -35,6 +78,7 @@ var tailCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(tailCmd)
+	tailCmd.Flags().BoolVarP(&tailDetect, "detect", "d", false, "Highlight suspicious entries inline (SQLi, XSS, scanners, etc.)")
 }
 
 func runTail(cmd *cobra.Command, args []string) error {
@@ -45,43 +89,41 @@ func runTail(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
+	var det *analysis.Detector
+	if tailDetect {
+		det = analysis.NewDetector()
+		det.SetUARotationThreshold(flagUARotation)
+	}
 
-	for _, src := range sources {
-		r := reader.FromSourceFollow(src)
-		lines, err := r.Read(ctx)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", r.Name(), err)
+	for line := range fanInFollow(ctx, sources) {
+		entry, err := parser.Parse(line)
+		if err != nil || entry == nil {
 			continue
 		}
-		for line := range lines {
-			entry, err := parser.Parse(line)
-			if err != nil || entry == nil {
-				continue
-			}
-			if !analysis.MatchEntry(entry, filters) {
-				continue
-			}
-			printColorizedLog(entry)
+		if !analysis.MatchEntry(entry, filters) {
+			continue
+		}
+		if err := printColorizedLog(entry, det); err != nil {
+			break
 		}
 	}
 	return nil
 }
 
-func printColorizedLog(e *types.LogEntry) {
+func printColorizedLog(e *types.LogEntry, det *analysis.Detector) error {
 	timeStr := styleTailDim.Render(e.Timestamp.Format("15:04:05"))
 	statusStr := formatStatus(e.Status)
 	methodStr := lipgloss.NewStyle().Bold(true).Render(e.Method)
-	pathStr := styleTailPath.Render(e.Path())
-	ipStr := styleTailIP.Render(e.RemoteIP)
+	pathStr := e.Path()
+	ipStr := e.RemoteIP
+	if flagDefang {
+		pathStr = output.Defang(pathStr)
+		ipStr = output.Defang(ipStr)
+	}
+	pathStr = styleTailPath.Render(pathStr)
 	sizeStr := output.FormatBytes(e.Size)
 	durStr := output.FormatDuration(e.Duration)
 
@@ -92,8 +134,58 @@ func printColorizedLog(e *types.LogEntry) {
 		uaInfo = fmt.Sprintf(" [%s/%s]", e.OS, e.Browser)
 	}
 
-	fmt.Printf("%s  %s  %s %s  (%s, %s) - %s%s\n",
-		timeStr, statusStr, methodStr, pathStr, sizeStr, durStr, ipStr, uaInfo)
+	// Run detection
+	var dets []analysis.Detection
+	if det != nil {
+		dets = det.DetectAll(e)
+	}
+
+	// Determine IP color and threat suffix based on max confidence
+	ipStyled := styleTailIP.Render(ipStr)
+	threatSuffix := ""
+	if len(dets) > 0 {
+		var labels []string
+		maxConf := 0
+		seen := make(map[analysis.DetectionType]bool)
+		for _, d := range dets {
+			if seen[d.Type] {
+				continue
+			}
+			seen[d.Type] = true
+			if label, ok := tailDetectLabels[d.Type]; ok {
+				labels = append(labels, label)
+			}
+			if d.Confidence > maxConf {
+				maxConf = d.Confidence
+			}
+		}
+
+		var ipStyle, threatStyle lipgloss.Style
+		switch {
+		case maxConf >= 9:
+			ipStyle = styleIPCritical
+			threatStyle = styleThreatCrit
+		case maxConf >= 7:
+			ipStyle = styleIPHigh
+			threatStyle = styleThreatHigh
+		case maxConf >= 5:
+			ipStyle = styleIPMedium
+			threatStyle = styleThreatMed
+		default:
+			ipStyle = styleIPLow
+			threatStyle = styleThreatLow
+		}
+		ipStyled = ipStyle.Render(ipStr)
+
+		if len(labels) > 0 {
+			arrow := styleThreatArrow.Render(" → ")
+			threatSuffix = arrow + threatStyle.Render(strings.Join(labels, " · "))
+		}
+	}
+
+	_, err := fmt.Printf("%s  %s  %s %s  (%s, %s) - %s%s%s\n",
+		timeStr, statusStr, methodStr, pathStr, sizeStr, durStr, ipStyled, uaInfo, threatSuffix)
+	return err
 }
 
 func formatStatus(s int) string {
