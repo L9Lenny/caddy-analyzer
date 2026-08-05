@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	Source string `json:"source,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 func DefaultConfigPath() (string, error) {

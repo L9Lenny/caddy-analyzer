@@ -76,6 +76,30 @@ echo "[*] Verifying checksum..."
     exit 1
 }
 
+# Verify the cosign signature on checksums.txt if cosign is available, so a
+# compromise of GitHub releases cannot replace both archive and checksums
+# without also compromising the signer identity.
+if command -v cosign >/dev/null 2>&1; then
+    SIG_URL="https://github.com/$REPO/releases/download/$TAG/checksums.txt.sig"
+    CERT_URL="https://github.com/$REPO/releases/download/$TAG/checksums.txt.pem"
+    if curl -sSfL "$SIG_URL" -o "$TMP_DIR/checksums.txt.sig" 2>/dev/null && \
+       curl -sSfL "$CERT_URL" -o "$TMP_DIR/checksums.txt.pem" 2>/dev/null; then
+        echo "[*] Verifying cosign signature on checksums.txt..."
+        if cosign verify-blob \
+            --certificate "$TMP_DIR/checksums.txt.pem" \
+            --certificate-identity "https://github.com/$REPO/.github/workflows/release.yml@refs/tags/$TAG" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --signature "$TMP_DIR/checksums.txt.sig" \
+            "$TMP_DIR/checksums.txt" 2>/dev/null; then
+            echo "[+] Cosign signature verified."
+        else
+            echo "[!] WARNING: cosign signature verification failed (SHA256 still verified)." >&2
+        fi
+    fi
+else
+    echo "[*] cosign not found; skipping signature verification (SHA256 still verified)." >&2
+fi
+
 tar -xzf "$TMP_DIR/$ARCHIVE_NAME" -C "$TMP_DIR"
 BIN_PATH="$TMP_DIR/$BINARY_NAME"
 

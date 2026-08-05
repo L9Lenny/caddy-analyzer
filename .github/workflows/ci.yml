@@ -47,6 +47,23 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
       - name: Report coverage
         run: go tool cover -func=coverage.out | tail -1
+      - name: Enforce coverage threshold
+        run: |
+          COV=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}' | sed 's/%//')
+          echo "Total coverage: ${COV}%"
+          awk -v c="$COV" 'BEGIN { if (c+0 < 50) { print "::error::Coverage " c "% is below 50% threshold"; exit 1 } }'
+
+  fmt:
+    name: Go Fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.24'
+          cache: true
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
 
   vet:
     name: Go Vet
@@ -107,4 +124,4 @@ jobs:
       - name: gosec
         uses: securego/gosec@32975f4bab0d7b683a88756aaf3fa5502188b476 # v2.22.7
         with:
-          args: -exclude G104,G204,G304 ./...
+          args: -exclude G204,G304 ./...
