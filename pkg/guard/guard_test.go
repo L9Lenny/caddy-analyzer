@@ -41,7 +41,7 @@ func newTestGuard() *Guard {
 		AuthLimit:     10,
 		NotFoundLimit: 50,
 		Window:        50 * time.Millisecond,
-		BlockDuration:  0,
+		BlockDuration: 0,
 		IPValidator:   func(string) error { return nil },
 	})
 }
@@ -464,3 +464,191 @@ func TestGuardExpiryLoopStopsOnContextCancel(t *testing.T) {
 	}
 }
 
+func TestGuardTickBlocksOnPatternDetection(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.DetectionConfidence = 8
+
+	g.Evaluate(caddyLine("1.2.3.4", "/search?id=1%27%20UNION%20SELECT%20username%20FROM%20users--", "GET", 200))
+
+	blocked := g.Tick(context.Background())
+
+	if len(blocked) != 1 {
+		t.Fatalf("expected 1 candidate blocked via pattern detection, got %d", len(blocked))
+	}
+	if blocked[0].IP != "1.2.3.4" {
+		t.Errorf("expected IP 1.2.3.4, got %s", blocked[0].IP)
+	}
+	if !g.IsBlocked("1.2.3.4") {
+		t.Error("expected 1.2.3.4 to be blocked")
+	}
+	if !fb.blocked["1.2.3.4"] {
+		t.Error("expected fake blocker to have blocked 1.2.3.4")
+	}
+}
+
+func TestGuardDetectionConfidenceBelowThreshold(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.DetectionConfidence = 10
+	g.cfg.Limit = 0
+	g.cfg.AuthLimit = 0
+	g.cfg.NotFoundLimit = 0
+
+	// "UNION SELECT" is confidence 10; use a weaker signal that is
+	// below the configured threshold to ensure it is not blocked.
+	g.Evaluate(caddyLine("1.2.3.4", "/api?q=chr(65)", "GET", 200))
+
+	blocked := g.Tick(context.Background())
+
+	if len(blocked) != 0 {
+		t.Fatalf("expected 0 blocked (confidence below threshold), got %d", len(blocked))
+	}
+	if g.IsBlocked("1.2.3.4") {
+		t.Error("IP should not be blocked below confidence threshold")
+	}
+}
+
+func TestGuardZeroThresholdsDisableBlocking(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.Limit = 0
+	g.cfg.AuthLimit = 0
+	g.cfg.NotFoundLimit = 0
+
+	for i := 0; i < 3; i++ {
+		g.Evaluate(caddyLine("1.2.3.4", "/login", "POST", 401))
+	}
+
+	blocked := g.Tick(context.Background())
+
+	if len(blocked) != 0 {
+		t.Fatalf("expected 0 blocked when all thresholds are disabled, got %d", len(blocked))
+	}
+}
+
+func TestGuardDetectionCountsResetAfterTick(t *testing.T) {
+	g := newTestGuard()
+	g.SetBlocker(newFakeBlocker())
+	g.cfg.DetectionConfidence = 8
+	g.cfg.Limit = 0
+	g.cfg.AuthLimit = 0
+	g.cfg.NotFoundLimit = 0
+
+	g.Evaluate(caddyLine("1.2.3.4", "/search?id=1%27%20UNION%20SELECT%20username%20FROM%20users--", "GET", 200))
+	_ = g.Tick(context.Background())
+
+	g.mu.Lock()
+	count := g.detectCounts["1.2.3.4"]
+	g.mu.Unlock()
+	if count != 0 {
+		t.Errorf("expected detect count reset to 0 after tick, got %d", count)
+	}
+}
+
+// TestGuardSlidingWindowBlocksAcrossTickBoundary verifies that a true sliding
+// window catches traffic that straddles a tick boundary, where a tumbling
+// window would reset and let the attacker evade the limit.
+func TestGuardSlidingWindowBlocksAcrossTickBoundary(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.Limit = 10
+	g.cfg.AuthLimit = 0
+	g.cfg.NotFoundLimit = 0
+
+	// 6 requests, tick (resets engine/detector but NOT the sliding window),
+	// then 5 more. Tumbling window: 6 then 5, neither >= 10. Sliding: 11 >= 10.
+	for i := 0; i < 6; i++ {
+		g.Evaluate(caddyLine("7.7.7.7", "/api", "GET", 200))
+	}
+	_ = g.Tick(context.Background())
+	for i := 0; i < 5; i++ {
+		g.Evaluate(caddyLine("7.7.7.7", "/api", "GET", 200))
+	}
+	blocked := g.Tick(context.Background())
+
+	if len(blocked) != 1 {
+		t.Fatalf("sliding window should block 7.7.7.7 across tick boundary, got %d blocked", len(blocked))
+	}
+	if blocked[0].IP != "7.7.7.7" {
+		t.Errorf("expected 7.7.7.7, got %s", blocked[0].IP)
+	}
+}
+
+// TestSlidingCountersExpiry verifies that buckets older than the window are
+// evicted during sum, so past traffic does not count toward the limit. Uses
+// controlled timestamps (the guard buckets at second granularity, appropriate
+// for the >=1s windows used in production).
+func TestSlidingCountersExpiry(t *testing.T) {
+	sc := newSlidingCounters(2 * time.Second)
+	base := time.Unix(1000, 0)
+	sc.add("1.1.1.1", base, false, false, "")
+	sc.add("1.1.1.1", base.Add(1*time.Second), false, false, "")
+
+	// Window is 2s. At base+3s, the bucket at base (3s old) is expired;
+	// the bucket at base+1s (2s old, on the cutoff boundary) is retained.
+	total, _, _ := sc.sum("1.1.1.1", base.Add(3*time.Second))
+	if total != 1 {
+		t.Errorf("expected 1 after expiry, got %d", total)
+	}
+
+	// After full expiry, the IP is gone.
+	sc.expire(base.Add(10 * time.Second))
+	if ips := sc.ips(); len(ips) != 0 {
+		t.Errorf("expected no IPs after full expiry, got %v", ips)
+	}
+}
+
+// TestGuardSubnetLimitBlocksDistributedScan verifies that a /24 with many
+// requests spread across IPs (each below the per-IP limit) is blocked as a
+// whole when --subnet-limit is set.
+func TestGuardSubnetLimitBlocksDistributedScan(t *testing.T) {
+	fb := newFakeBlocker()
+	g := newTestGuard()
+	g.SetBlocker(fb)
+	g.cfg.Limit = 100
+	g.cfg.SubnetLimit = 5
+
+	// 6 distinct IPs in 9.9.9.0/24, 1 request each → no per-IP trip,
+	// but /24 total = 6 >= 5.
+	for i := 1; i <= 6; i++ {
+		g.Evaluate(caddyLine(fmt.Sprintf("9.9.9.%d", i), "/api", "GET", 200))
+	}
+	blocked := g.Tick(context.Background())
+
+	found := false
+	for _, c := range blocked {
+		if c.IP == "9.9.9.0/24" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 9.9.9.0/24 blocked, got %v", blocked)
+	}
+}
+
+func TestCredStuffingCandidates(t *testing.T) {
+	sc := newSlidingCounters(time.Minute)
+	now := time.Now()
+	sc.add("1.1.1.1", now, true, false, "/login")
+	sc.add("2.2.2.2", now, true, false, "/login")
+	sc.add("3.3.3.3", now, true, false, "/login")
+	sc.add("4.4.4.4", now, true, false, "/admin")
+
+	hits := sc.credStuffingCandidates(3)
+	if len(hits) != 1 {
+		t.Fatalf("expected 1 cred stuffing hit, got %d", len(hits))
+	}
+	if hits[0].Path != "/login" || hits[0].IPCount != 3 {
+		t.Errorf("unexpected hit: %+v", hits[0])
+	}
+
+	hits2 := sc.credStuffingCandidates(5)
+	if len(hits2) != 0 {
+		t.Errorf("expected 0 hits with limit 5, got %d", len(hits2))
+	}
+}
