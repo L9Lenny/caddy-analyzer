@@ -12,8 +12,3 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-issues:
-  exclusions:
-    - path: _test\.go
-      linters:
-        - errcheck
