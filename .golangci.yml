@@ -1,3 +1,4 @@
+version: "2"
 linters:
   enable:
     - errcheck
@@ -5,14 +6,14 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - fmt.Fprint
-      - fmt.Fprintf
-      - fmt.Fprintln
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
 issues:
-  exclude-rules:
+  exclusions:
     - path: _test\.go
       linters:
         - errcheck

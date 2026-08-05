@@ -60,9 +60,9 @@ func TestCacheExpiry(t *testing.T) {
 	mock := &mockEnricher{rep: rep}
 	cache := NewCache(mock, 50*time.Millisecond)
 
-	cache.Lookup("1.2.3.4")
+	_, _ = cache.Lookup("1.2.3.4")
 	time.Sleep(60 * time.Millisecond)
-	cache.Lookup("1.2.3.4")
+	_, _ = cache.Lookup("1.2.3.4")
 
 	if len(cache.store) != 1 {
 		t.Errorf("expected 1 entry in cache, got %d", len(cache.store))
@@ -114,7 +114,7 @@ func TestCacheNilRepNotCached(t *testing.T) {
 	mock := &mockEnricher{rep: nil}
 	cache := NewCache(mock, 1*time.Hour)
 
-	cache.Lookup("1.2.3.4")
+	_, _ = cache.Lookup("1.2.3.4")
 
 	if len(cache.store) != 1 {
 		t.Fatalf("nil rep should be cached, store has %d entries", len(cache.store))
