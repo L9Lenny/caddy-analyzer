@@ -16,7 +16,7 @@
   <a href="https://github.com/L9Lenny/caddy-analyzer"><img src="https://img.shields.io/github/stars/L9Lenny/caddy-analyzer?style=flat-square" alt="Stars"></a>
 </p>
 
-<p align="center"><strong>🛡️ 22 attack categories · Dual-pass evasion-resistant engine · Real-time iptables firewall guard</strong></p>
+<p align="center"><strong>🛡️ 26 attack categories · Dual-pass evasion-resistant engine · Real-time iptables firewall guard · Sigma export · MITRE ATT&CK tagged</strong></p>
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## Security Detection Engine
 
-Scans every Caddy v2 request against **22 attack categories** using a dual-pass pattern engine — first on the URL-unescaped URI, second on the raw URI to catch multibyte and double-encoded bypass attempts. Suspicious requests are grouped by offending IP and surfaced in all output formats.
+Scans every Caddy v2 request against **26 attack categories** using a dual-pass pattern engine — first on the URL-unescaped URI, second on the raw URI to catch multibyte and double-encoded bypass attempts. Every detection is tagged with MITRE ATT&CK technique IDs. Suspicious requests are grouped by offending IP and surfaced in all output formats. Detections can be exported as Sigma rules for SIEM import.
 
 | Category | Covers | Example Patterns |
 |---|---|---|
@@ -48,6 +48,10 @@ Scans every Caddy v2 request against **22 attack categories** using a dual-pass 
 | **CRLF / Log Injection** | HTTP response header injection, log poisoning, Java ghost bits | `%0d%0aSet-Cookie:`, `%0d%0aLocation:`, literal CRLF, `%E5%98%8A%E5%98%8D` |
 | **Prototype Pollution** | JS prototype chain tampering | `__proto__`, `constructor.prototype`, JSON payloads |
 | **SSI Injection** | Server-side include directive injection | `<!--#exec cmd=`, `#include virtual=`, `#echo var=` |
+| **User-Agent Rotation** | Behavioral heuristic — IPs rotating ≥10 distinct UAs | credential stuffing, evasive scanners |
+| **JWT Abuse** | JWT alg:none bypass, token in URI, kid path traversal, Bearer token leak | `eyJ...` in URI, `"alg":"none"`, `kid":"../../../`, `Authorization: Bearer` |
+| **Object Enumeration** | BOLA/IDOR — sequential ID enumeration per path template | `/api/users/1`, `/api/users/2`, `/api/users/3` (≥10 distinct IDs) |
+| **Beaconing / C2** | Periodic callback detection (C2 beaconing) | inter-arrival CV < 0.25, 10-50 samples per path |
 | **LFI Wrapper Abuse** | PHP stream wrappers for file read/execution | `phar://`, `data://`, `expect://`, `compress.zlib` |
 | **Sensitive File Probes** | Credentials, backups, configs, source code, git exposure | `.env`, `.git/config`, `id_rsa`, `dump.sql`, `phpinfo.php` |
 | **Admin Probes** | DB admin panels, Spring Actuator, heapdumps, API docs, VCS metadata | `/phpmyadmin`, `/actuator/*`, `/h2-console`, `/swagger-ui` |
@@ -63,7 +67,7 @@ Output example:
        [scanner] Scanner / automated tool detected GET /admin
 ```
 
-> **Guard mode** (`caddy-analyze guard`) extends detection with automatic `iptables` banning — blocks offending IPs at the firewall on configurable thresholds. Supports audit logging (`--audit-log`), state persistence across restarts (`--state-file`), and an IP allowlist (`--never-block` / `--never-block-file`) to protect trusted IPs from ever being banned.
+> **Guard mode** (`caddy-analyze guard`) extends detection with automatic `iptables` banning — blocks offending IPs at the firewall on configurable thresholds. Uses a **sliding window** (per-IP, per-second buckets) so attackers cannot evade limits by straddling a tick boundary. Supports audit logging (`--audit-log`), state persistence across restarts (`--state-file`), an IP allowlist (`--never-block` / `--never-block-file`), distributed-scan defense (`--subnet-limit`), RPS anomaly alerting (`--rps-anomaly`), and `--trust-forwarded` for deployments behind a reverse proxy/CDN. Pattern-detection blocks are filtered by confidence via `--detect-confidence` (default 8, `0` disables).
 
 ---
 
@@ -81,6 +85,9 @@ caddy-analyze top ip
 
 # Real-time streaming with filters
 caddy-analyze tail --ip 10.0.0.0/8 --no-bots docker://my-caddy
+
+# Real-time streaming with inline threat detection
+caddy-analyze tail --detect docker://my-caddy
 
 # Generate standalone HTML report
 caddy-analyze -f html -o report.html --detect
@@ -101,7 +108,7 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 | Capability | caddy-analyzer | goaccess | lnav | grep/awk |
 |---|---|---|---|---|
 | Caddy v2 JSON native | ✅ | ❌ | ❌ | ❌ |
-| Security threat detection (22 categories) | ✅ | ❌ | ❌ | ❌ |
+| Security threat detection (26 categories) | ✅ | ❌ | ❌ | ❌ |
 | Dual-pass evasion-resistant detection | ✅ | ❌ | ❌ | ❌ |
 | Real-time firewall guard (iptables) | ✅ | ❌ | ❌ | ❌ |
 | Per-IP suspicious request details | ✅ | ❌ | ❌ | ❌ |
@@ -119,15 +126,57 @@ Caddy v2 uses a **structured JSON log format** that differs from the Common/Comb
 | Area | Capability |
 |---|---|
 | **Parsing** | Native Caddy v2 structured JSON — no regex, no config required |
-| **Security** | 22 attack categories: SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, path traversal/LFI, LFI wrapper abuse, GraphQL introspection, Log4j/JNDI, XXE/XInclude, open redirect, LDAP injection, XPath injection, CRLF injection, prototype pollution, SSI injection, sensitive file probes, WordPress probes, CGI probes, admin probes, scanner tools |
-| **Detection Accuracy** | Dual-pass engine: URL-unescaped + raw URI matching catches multibyte-encoded and double-encoded bypass attempts. Confidence scoring (1-10) per detection |
-| **Firewall** | `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds, ban duration, audit logging, state persistence, and IP allowlist |
+| **Security** | 26 attack categories: SQLi, NoSQLi, XSS, SSTI, SSRF, RCE, path traversal/LFI, LFI wrapper abuse, GraphQL introspection, Log4j/JNDI, XXE/XInclude, open redirect, LDAP injection, XPath injection, CRLF injection, prototype pollution, SSI injection, UA rotation, JWT abuse, object enumeration (BOLA/IDOR), beaconing (C2), sensitive file probes, WordPress probes, CGI probes, admin probes, scanner tools |
+| **Detection Accuracy** | Dual-pass engine: URL-unescaped + raw URI matching catches multibyte-encoded and double-encoded bypass attempts. Confidence scoring (1-10) per detection. LRU IP eviction (100K cap) bounds memory on huge logs |
+| **Firewall** | `guard` daemon auto-blocks malicious IPs via `iptables` with configurable thresholds, ban duration, audit logging, state persistence (survives restarts), IP allowlist, and `block`/`unban` state sync |
 | **Traffic Analysis** | Classifies human users vs crawlers (Googlebot, Bingbot, Yandex, DuckDuckBot) and automated scrapers |
 | **Diff Engine** | Side-by-side comparison of two log files detecting 5xx spikes, RPS shifts, and latency regressions |
 | **TUI Dashboard** | 6-tab Bubbletea/Lipgloss interface with live streaming, security alerts, and top metrics |
 | **HTML Reports** | Standalone dark-mode single-file HTML reports for sharing with your team |
 | **Data Sources** | Local files, stdin, Docker (`docker://`), Kubernetes (`k8s://`), systemd journalctl (`journalctl://`) |
 | **Filtering** | Entry-level filters auto-switch to color-coded log listings. Supports CIDR, status classes, methods, path globs |
+
+---
+
+## Real-Time Threat Detection (`tail --detect`)
+
+The `tail` subcommand accepts `--detect` (`-d`) to run the full detection engine on every streamed entry, inline:
+
+```bash
+caddy-analyze tail --detect docker://my-caddy
+caddy-analyze tail -d --ip 10.0.0.0/8 /var/log/caddy/access.log
+caddy-analyze tail --detect --defang journalctl://
+```
+
+Suspicious entries are highlighted with **zero visual noise**:
+
+- The client **IP** is colored by the highest-severity detection on that entry:
+  - **Critical / High** — bright red (bold)
+  - **Medium** — amber
+  - **Low** — olive
+- After the User-Agent info, a dim `→` arrow is followed by the **attack types** in severity color:
+
+```
+21:06:07  404 WARN  GET /cms/gather/getArticle  (1.71 KB, 2.27ms) - 2.58.137.2 [macOS/Safari] → XSS · RCE
+21:06:07  404 WARN  GET /wp-content/plugins/restropress/readme.txt  (9 B, 73µs) - 2.58.137.2 [Linux/Firefox] → WP
+21:06:06  200 OK  GET /  (3.04 KB, 5.95ms) - 2.58.137.2 [macOS/Firefox]
+```
+
+Clean entries look identical to `tail` without `--detect` — no markers, no badges, no extra lines. Works with `--defang` for safe IOC sharing.
+
+> **Note:** `--detect` is a local flag on `tail` (not the root-level `--detect`). Run `caddy-analyze tail --help` for details.
+
+---
+
+## Progress Bar
+
+When analyzing files on a TTY, a determinate progress bar is shown:
+
+```
+[████████████░░░░░░░░] 5000/10000 (50%) caddy_access.log
+```
+
+Active on `caddy-analyze` (offline mode), `top`, and `diff` (per-file with filename label). Auto-disabled when stderr is redirected to a pipe or file. For non-file sources (stdin, `docker://`, `k8s://`, `journalctl://`) an indeterminate spinner is shown instead. Pre-scan overhead is <3%.
 
 ---
 
@@ -164,9 +213,10 @@ Subcommands:
   top <dimension>              Top-N metric inspector (path, ip, ua, status, method, host, bandwidth)
   diff <baseline> <target>     Compare two log files
   guard                        Auto-block malicious IPs via iptables
+  export-sigma                 Export detection rules as Sigma YAML (23 rules, MITRE ATT&CK tagged)
   config                       Manage default log source configuration
   block <ip...>                Manually block IP via iptables (--audit-log)
-  unban <ip...>                Remove IP block from iptables (--all, --list, --audit-log)
+  unban <ip...>               Remove IP block from iptables (--all, --list, --audit-log)
 ```
 </details>
 
@@ -197,17 +247,52 @@ Subcommands:
 | `--errors-only` | `-e` | `false` | Filter errors only |
 | `--no-bots` | | `false` | Exclude bot/crawler traffic |
 | `--bots-only` | | `false` | Include only bot traffic |
-| `--grep` | `-g` | `""` | Search across URI, User-Agent, IP, Host |
+| `--grep` | | `""` | Regex search across URI, User-Agent, IP, Host (invalid pattern falls back to substring) |
 | `--compact` | `-c` | `false` | Compact output mode |
+| `--defang` | | `false` | Defang IPs and URLs in output (`.` → `[.]`, `http://` → `hxxp://`) for safe sharing |
+| `--trust-forwarded` | | `false` | Trust `X-Forwarded-For` / `X-Real-IP` for client IP (use behind a reverse proxy/CDN) |
+| `--max-cardinality` | | `100000` | Max distinct keys tracked per counter (paths, IPs, UAs). `0` = unlimited |
+| `--ua-rotation` | | `10` | Distinct User-Agents from one IP before scanner/rotation heuristic fires |
+| `--host` | | `""` | Filter by request host (substring match, case-insensitive) |
+| `--max-latency` | | `""` | Filter requests faster than duration (counterpart to `--slow`) |
+| `--min-size` | | `""` | Filter responses at least this size (bytes, or `k`/`mb`/`gb` suffix) |
+| `--max-size` | | `""` | Filter responses at most this size (bytes, or `k`/`mb`/`gb` suffix) |
 | `--namespace` | `-n` | `""` | Kubernetes pod namespace |
-| `--audit-log` | | `/var/log/caddy-analyzer-audit.jsonl` | JSON-lines audit log of block/unblock actions (guard/block/unban). Empty to disable |
-| `--state-file` | | `/var/lib/caddy-analyzer/blocked.json` | Persist blocked-IP state across restarts (guard). Empty to disable |
+| `--audit-log` | | `/var/log/caddy-analyzer-audit.jsonl` | JSON-lines audit log of block/unblock/anomaly actions (guard/block/unban). Empty to disable |
+| `--state-file` | | `/var/lib/caddy-analyzer/blocked.json` | Persist blocked-IP state across restarts (guard/block/unban). Empty to disable |
 | `--never-block` | | `""` | Comma-separated IPs/CIDRs that should never be blocked (guard) |
 | `--never-block-file` | | `""` | File with IPs/CIDRs (one per line, `#` comments) to never block (guard) |
+| `--detect-confidence` | | `8` | Min confidence (1-10) for pattern-detection blocking (guard). `0` disables |
+| `--subnet-limit` | | `0` | Block a /24 when its combined requests exceed this (guard). `0` disables; distributed-scan defense |
+| `--rps-anomaly` | | `0` | Alert when current RPS exceeds this factor over the EWMA baseline (guard). `0` disables; e.g. `5` = 5× spike |
+| `--cred-stuffing-limit` | | `0` | Alert when N distinct IPs fail auth on the same path (guard). `0` disables |
+| `--enrich` | | `false` | Enable threat-intel enrichment via AbuseIPDB (guard). Set `ABUSEIPDB_KEY` env var |
+| `--enrich-threshold` | | `70` | Min AbuseIPDB score to pre-block IP with auth failures (guard). `0` disables enrichment blocking |
 | `--version` | `-v` | `false` | Print version and exit |
 </details>
 
 ---
+
+## Performance
+
+Benchmarks run on a single core with synthetic Caddy v2 JSON logs (10% attack traffic, 8 source IPs, mixed paths):
+
+| Log size | `--detect` | Parse only | RAM |
+|----------|-----------|------------|-----|
+| 1.5K lines (real) | 0.6s | <0.1s | 21 MB |
+| 10K lines | 1.5s | 0.2s | 25 MB |
+| 100K lines | 14.3s | 1.4s | 53 MB |
+| 1M lines | 2m29s | ~14s | 138 MB |
+
+Throughput: ~7,000 lines/sec with `--detect`, ~70,000 lines/sec parse-only. Memory scales linearly (~1.3 KB/line with detection, ~0.16 KB/line parse-only).
+
+The detection engine uses three optimizations to achieve this throughput:
+
+1. **Case-fold elimination** — Regex patterns are compiled with lowercased literals (including `OpCharClass` ranges) and matched against lowercased source, eliminating `unicode.SimpleFold` overhead (~8% CPU).
+2. **Per-source marker triage** — Before running regexes, a fast `strings.Contains` check verifies whether any attack marker (literal extracted from the regex) is present in the source. Markers are split by source type (URI, User-Agent, Authorization) to avoid cross-source false positives. For benign traffic (~90%), this skips nearly all regex evaluations.
+3. **Literal fast path** — Patterns that are pure literal alternations (e.g. WordPress probes, scanner UAs) use `strings.Contains` directly instead of the regex engine (~100x faster per pattern).
+
+Memory is bounded by LRU IP eviction (100K cap, configurable via `Detector.SetIPCap`) and per-IP path caps (1K paths). The enrich cache is bounded to 10K entries with TTL eviction.
 
 ## Development
 

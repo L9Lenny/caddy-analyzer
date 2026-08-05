@@ -210,15 +210,15 @@
             </tr>
             <tr>
                 <td><code>--grep</code></td>
-                <td><code>-g</code></td>
+                <td><code>-</code></td>
                 <td><code>""</code></td>
-                <td>Search across URI, User-Agent, IP, Host. <code>caddy-analyze -g "/api"</code></td>
+                <td>Search across URI, User-Agent, IP, Host. <code>caddy-analyze --grep "/api"</code></td>
             </tr>
         </tbody>
     </table>
 
     <h3>Filter Behavior: Listing vs Report</h3>
-    <p>When entry-level filters (<code>--ip</code>, <code>-s</code>, <code>-m</code>, <code>-p</code>, <code>--5xx</code>, <code>--no-bots</code>, <code>-g</code>, etc.) are active, <code>caddy-analyze</code> automatically switches to a color-coded log listing instead of the aggregate report. Active filters are shown in the output header for all formats.</p>
+    <p>When entry-level filters (<code>--ip</code>, <code>-s</code>, <code>-m</code>, <code>-p</code>, <code>--5xx</code>, <code>--no-bots</code>, <code>--grep</code>, etc.) are active, <code>caddy-analyze</code> automatically switches to a color-coded log listing instead of the aggregate report. Active filters are shown in the output header for all formats.</p>
     <pre>caddy-analyze --ip 10.0.0.0/8 access.log
 15 entries matched
 
@@ -303,14 +303,35 @@ caddy-analyze -f html -o report.html</pre>
     <pre>caddy-analyze tail docker://my-caddy
 caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
 
+    <h4><code>--detect</code> / <code>-d</code> (local flag)</h4>
+    <p>Runs the full 26-category detection engine on every streamed entry and highlights threats inline with zero visual noise:</p>
+    <ul>
+        <li>The client <strong>IP</strong> is colored by the highest-severity detection on that entry: critical/high = bright red (bold), medium = amber, low = olive.</li>
+        <li>After the User-Agent info, a dim <code>→</code> arrow is followed by the <strong>attack types</strong> in severity color (e.g. <code>→ XSS · RCE</code>).</li>
+        <li>Clean entries are identical to <code>tail</code> without <code>--detect</code> — no markers, no badges, no extra lines.</li>
+    </ul>
+    <pre>caddy-analyze tail --detect docker://my-caddy
+caddy-analyze tail -d --ip 10.0.0.0/8 /var/log/caddy/access.log
+caddy-analyze tail --detect --defang journalctl://</pre>
+    <p>Works with <code>--defang</code> for safe IOC sharing. Note: <code>--detect</code> is a <em>local</em> flag on <code>tail</code>, not the root-level <code>--detect</code>.</p>
+
     <h3><code>top [dimension] [source] [flags]</code></h3>
-    <p>Inspects top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>method</code>, <code>host</code>, <code>bandwidth</code>). Supports <code>-b, --by &lt;dim&gt;</code> flag and filters like <code>--5xx</code>, <code>--slow</code>, <code>--no-bots</code>.</p>
+    <p>Inspects top metrics by dimension (<code>path</code>, <code>ip</code>, <code>ua</code>, <code>status</code>, <code>method</code>, <code>host</code>, <code>bandwidth</code>). Supports <code>-b, --by &lt;dim&gt;</code> flag and filters like <code>--5xx</code>, <code>--slow</code>, <code>--no-bots</code>. Output respects the shared format and file options (<code>-f json|csv</code>, <code>-o &lt;file&gt;</code>).
+    <pre>caddy-analyze top ip -f csv /var/log/caddy/access.log
+caddy-analyze top path --5xx -f json -o top.json /var/log/caddy/access.log</pre>
 
     <h3><code>diff &lt;log1&gt; &lt;log2&gt;</code></h3>
-    <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments.</p>
+    <p>Compares two log files side-by-side to detect RPS shifts, 5xx error spikes, latency regressions, and new failing URIs between deployments. Supports the shared format and file options (<code>-f json|csv|html</code>, <code>-o &lt;file&gt;</code>) and standard filters.</p>
 
     <h3><code>config [show|set|reset]</code></h3>
-    <p>Manages persistent default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files. Use the <code>--global</code> / <code>-g</code> flag to read or write the global config instead of the local one.</p>
+    <p>Manages persistent default log source settings in local (<code>./caddy-analyzer.json</code>) or global (<code>~/.config/caddy-analyzer/config.json</code>) JSON config files. Use the <code>--global</code> / <code>-g</code> flag to read or write the global config instead of the local one. Kubernetes sources are saved with the shared <code>-n, --namespace</code> flag:
+    <pre>caddy-analyze config k8s://caddy-pod-abc12 -n production     # remember pod + namespace</pre>
+
+    <h3><code>export-sigma [file]</code></h3>
+    <p>Exports 23 detection categories as Sigma YAML rules (multi-document) for SIEM import (Splunk, Elastic, Sigma-compatible SIEMs). Each rule includes MITRE ATT&amp;CK tags, deterministic UUID, and dynamically-constructed detection conditions. Validate with <code>sigma check</code>. The 3 behavioral detections (ua_rotation, object_enumeration, beaconing) are not pattern-based and not exported.</p>
+    <pre>caddy-analyze export-sigma                    # stdout
+caddy-analyze export-sigma rules.yml          # file
+caddy-analyze export-sigma - | sigma check    # pipe to validator</pre>
 
     <h3><code>guard [source]</code> & <code>block</code> / <code>unban</code></h3>
     <p>Monitors streaming logs and automatically adds offending IP addresses to Linux <code>iptables</code> DROP rules when attack thresholds are exceeded (<code>--limit 50 --window 1m</code>).</p>
@@ -370,6 +391,46 @@ caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
                 <td><code>""</code></td>
                 <td>Path to a file containing IPs/CIDRs (one per line, <code>#</code> comments supported) that should never be blocked. Merged with <code>--never-block</code>.</td>
             </tr>
+            <tr>
+                <td><code>--detect-confidence</code></td>
+                <td><code>8</code></td>
+                <td>Minimum confidence (1-10) for pattern-detection blocking. Detections scoring below this threshold are reported but not blocked. Pass <code>0</code> to disable pattern-based blocking entirely (rate/status thresholds still apply).</td>
+            </tr>
+            <tr>
+                <td><code>--subnet-limit</code></td>
+                <td><code>0</code></td>
+                <td>Block a whole /24 (IPv4) or /64 (IPv6) when its combined requests exceed this threshold, even if no single IP trips. Distributed-scan defense. <code>0</code> disables.</td>
+            </tr>
+            <tr>
+                <td><code>--rps-anomaly</code></td>
+                <td><code>0</code></td>
+                <td>Alert when current RPS exceeds this factor over the EWMA baseline (e.g. <code>5</code> = 5× spike). Catches volumetric spikes / DDoS. <code>0</code> disables.</td>
+            </tr>
+            <tr>
+                <td><code>--cred-stuffing-limit</code></td>
+                <td><code>0</code></td>
+                <td>Alert when N distinct IPs fail auth (401/403) on the same path within the window. Catches distributed credential stuffing. <code>0</code> disables.</td>
+            </tr>
+            <tr>
+                <td><code>--enrich</code></td>
+                <td><code>false</code></td>
+                <td>Enable threat-intel enrichment via AbuseIPDB. Set <code>ABUSEIPDB_KEY</code> env var. IPs with auth failures and AbuseIPDB score ≥ <code>--enrich-threshold</code> are pre-blocked.</td>
+            </tr>
+            <tr>
+                <td><code>--enrich-threshold</code></td>
+                <td><code>70</code></td>
+                <td>Minimum AbuseIPDB abuse confidence score to pre-block an IP with auth failures. <code>0</code> disables enrichment blocking.</td>
+            </tr>
+            <tr>
+                <td><code>--ua-rotation</code></td>
+                <td><code>10</code></td>
+                <td>Distinct User-Agents from one IP before scanner/rotation heuristic fires.</td>
+            </tr>
+            <tr>
+                <td><code>--trust-forwarded</code></td>
+                <td><code>false</code></td>
+                <td>Trust <code>X-Forwarded-For</code> / <code>X-Real-IP</code> for client IP (use behind a reverse proxy/CDN).</td>
+            </tr>
         </tbody>
     </table>
     <pre>sudo caddy-analyze guard --limit 50 --window 1m \
@@ -380,7 +441,7 @@ caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
   docker://my-caddy</pre>
 
     <h4>Manual Block &amp; Unban</h4>
-    <p>The <code>block &lt;ip...&gt;</code> and <code>unban &lt;ip...&gt;</code> subcommands manage iptables rules directly. Both accept <code>--audit-log</code> (same default as guard) to record the action with the invoking user.</p>
+    <p>The <code>block &lt;ip...&gt;</code> and <code>unban &lt;ip...&gt;</code> subcommands manage iptables rules directly. Both accept <code>--audit-log</code> and <code>--state-file</code> (same defaults as guard) to sync manual blocks/unbans with the guard's persisted state — manual blocks survive guard restarts, manual unbans prevent re-blocking on restart. Both commands return non-zero exit code if any IP fails. <code>block</code> is idempotent: blocking an already-blocked IP is a no-op (no duplicate iptables rules).</p>
     <table>
         <thead>
             <tr>
@@ -396,6 +457,12 @@ caddy-analyze tail --ip 192.168.1.100 --no-bots</pre>
                 <td>-</td>
                 <td><code>/var/log/caddy-analyzer-audit.jsonl</code></td>
                 <td>JSON-lines audit log path (block/unban actions). Pass empty string to disable.</td>
+            </tr>
+            <tr>
+                <td><code>--state-file</code></td>
+                <td>-</td>
+                <td><code>/var/lib/caddy-analyzer/blocked.json</code></td>
+                <td>Guard state file to sync manual blocks/unbans. Pass empty string to disable.</td>
             </tr>
             <tr>
                 <td><code>--all</code></td>

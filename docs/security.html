@@ -118,7 +118,14 @@
     <h2>2. URL Unescaping & Evasion Prevention</h2>
     <p>Before evaluating detection rules, <code>caddy-analyze</code> automatically unescapes URL percent-encodings (e.g., converting <code>%2e%2e%2f</code> to <code>../</code> and <code>%3Cscript%3E</code> to <code>&lt;script&gt;</code>) to prevent attackers from bypassing security rules using URL encoding tricks. Additionally, a second pass matches against the <strong>raw (non-unescaped) URI</strong> to catch multibyte-encoded traversal sequences (<code>%c0%ae%c0%ae%c0%af</code>, <code>%252e%252e%252f</code>) and internal host probe attempts that would be lost after unescaping.</p>
 
-    <h2>3. Threat Rule Specification (22 Categories)</h2>
+    <h3>Memory Bounding</h3>
+    <p>The detection engine bounds memory usage on huge logs via two mechanisms:</p>
+    <ul>
+        <li><strong>LRU IP eviction</strong> — at most 100,000 distinct client IPs are tracked (configurable via <code>Detector.SetIPCap</code>). When the cap is reached, the least recently used IP is evicted. Actively-used IPs are never dropped, preserving detection accuracy for real attackers.</li>
+        <li><strong>Per-IP path cap</strong> — at most 1,000 distinct paths per IP are tracked for beaconing/object-enumeration detection, preventing an attacker with many endpoints from exhausting memory.</li>
+    </ul>
+
+    <h2>3. Threat Rule Specification (26 Categories)</h2>
 
     <table>
         <thead>
@@ -193,6 +200,22 @@
                 <td><code>&lt;!--#exec cmd=</code>, <code>#include virtual=</code>, <code>#echo var=</code></td>
             </tr>
             <tr>
+                <td><strong>User-Agent Rotation</strong></td>
+                <td>Behavioral heuristic — IPs rotating ≥10 distinct UAs (credential stuffing, evasive scanners)</td>
+            </tr>
+            <tr>
+                <td><strong>JWT Abuse</strong></td>
+                <td><code>"alg":"none"</code> bypass, JWT token in URI, <code>kid</code> path traversal, Bearer token leak</td>
+            </tr>
+            <tr>
+                <td><strong>Object Enumeration (BOLA/IDOR)</strong></td>
+                <td>Sequential ID enumeration per path template (≥10 distinct IDs on <code>/api/users/{id}</code>)</td>
+            </tr>
+            <tr>
+                <td><strong>Beaconing / C2</strong></td>
+                <td>Periodic callback detection (inter-arrival CV &lt; 0.25, 10-50 samples per path)</td>
+            </tr>
+            <tr>
                 <td><strong>LFI Wrapper Abuse</strong></td>
                 <td><code>phar://</code>, <code>data://</code>, <code>expect://</code>, <code>compress.zlib</code></td>
             </tr>
@@ -230,8 +253,10 @@
 {"ts":"2025-01-15T14:29:01Z","action":"block","ip":"203.0.113.5","reason":"threshold_exceeded","duration":"24h0m0s","user":"root"}</pre>
 
     <h3>State Persistence</h3>
-    <p>Use <code>--state-file &lt;path&gt;</code> to persist blocked-IP state across guard restarts. When the guard daemon restarts, it reloads previously blocked IPs, cleans up expired bans, and resumes enforcement. Without this flag, all bans are lost on restart.</p>
-    <pre>sudo caddy-analyze guard --state-file /var/lib/caddy-analyzer/blocked.json docker://my-caddy</pre>
+    <p>Use <code>--state-file &lt;path&gt;</code> to persist blocked-IP state across guard restarts. When the guard daemon restarts, it reloads previously blocked IPs, cleans up expired bans, and resumes enforcement. Without this flag, all bans are lost on restart. The <code>block</code> and <code>unban</code> commands also accept <code>--state-file</code> to sync manual blocks/unbans with the guard's persisted state.</p>
+    <pre>sudo caddy-analyze guard --state-file /var/lib/caddy-analyzer/blocked.json docker://my-caddy
+sudo caddy-analyze block --state-file /var/lib/caddy-analyzer/blocked.json 203.0.113.5
+sudo caddy-analyze unban --state-file /var/lib/caddy-analyzer/blocked.json 203.0.113.5</pre>
 
     <h3>IP Allowlist (Never Block)</h3>
     <p>Use <code>--never-block</code> to specify IPs/CIDRs that should never be banned, protecting trusted gateways, proxies, or health-check IPs from false-positive blocks. Use <code>--never-block-file</code> to load a larger allowlist from a file (one IP/CIDR per line, <code>#</code> comments supported). The two flags can be combined — entries are merged.</p>
@@ -240,8 +265,31 @@
   --never-block-file /etc/caddy-analyzer/allowlist.txt \
   docker://my-caddy</pre>
 
+    <h3>Pattern-Detection Blocking</h3>
+    <p>Besides rate and status thresholds, <code>guard</code> also blocks IPs whose requests match security patterns (SQLi, XSS, RCE, etc.). Use <code>--detect-confidence &lt;1-10&gt;</code> to set the minimum confidence score required to trigger a block (default <code>8</code>); detections below the threshold are reported in the audit log but not blocked. Pass <code>0</code> to disable pattern-based blocking entirely:</p>
+    <pre>sudo caddy-analyze guard --detect-confidence 8 docker://my-caddy
+# Block only very high-signal attacks (UNION SELECT, ${jndi:...})...
+sudo caddy-analyze guard --detect-confidence 9 docker://my-caddy
+# Disable pattern-based blocking (rate/status thresholds only)...
+sudo caddy-analyze guard --detect-confidence 0 docker://my-caddy</pre>
+
     <h3>Confidence Scoring</h3>
     <p>Every detection is assigned a confidence score from 1 (low) to 10 (high) based on the specificity and reliability of the matched pattern. High-confidence patterns (e.g. <code>UNION SELECT</code>, <code>${jndi:ldap://</code>) score 9-10, while broad or ambiguous patterns (e.g. <code>onerror=</code> which can appear in legitimate payloads) score 3-5. This allows downstream consumers to filter noise and prioritize high-signal detections.</p>
+
+    <h2>5. MITRE ATT&amp;CK Tags</h2>
+    <p>Every detection carries MITRE ATT&amp;CK technique IDs (e.g. <code>T1190</code> for Exploit Public-Facing Application, <code>T1595</code> for Active Scanning). This lets SOC analysts build ATT&amp;CK Navigator coverage layers from caddy-analyzer output and map detections to adversary techniques. Tags are included in JSON output and Sigma rules.</p>
+
+    <h2>6. Sigma Rule Export</h2>
+    <p>Export 23 detection categories as Sigma YAML rules for SIEM import (Splunk, Elastic, Sigma-compatible SIEMs). Rules include MITRE ATT&amp;CK tags, deterministic UUIDs, and dynamically-constructed detection conditions. Validate with <code>sigma check</code>.</p>
+    <pre>caddy-analyze export-sigma                    # stdout
+caddy-analyze export-sigma rules.yml          # file
+caddy-analyze export-sigma - | sigma check    # pipe to validator</pre>
+
+    <h2>7. IOC Defanging (--defang)</h2>
+    <p>Use <code>--defang</code> to defang IPs and URLs in all output formats for safe sharing of reports containing IOCs. IPs are defanged (<code>192.168.1.1</code> → <code>192[.]168[.]1[.]1</code>) and URL schemes are defanged (<code>http://</code> → <code>hxxp://</code>, <code>https://</code> → <code>hxxps://</code>). Works across all commands: report, detect, top, tail, diff, and log listing mode.</p>
+    <pre>caddy-analyze --detect --defang access.log
+caddy-analyze top ip --defang access.log
+caddy-analyze tail --defang access.log</pre>
 
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>.</p>
