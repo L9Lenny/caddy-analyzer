@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/analysis"
+	"github.com/L9Lenny/caddy-analyzer/pkg/output"
 	"github.com/L9Lenny/caddy-analyzer/pkg/parser"
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
@@ -30,16 +31,17 @@ const (
 )
 
 type Model struct {
-	engine     *analysis.Engine
-	detector   *analysis.Detector
-	linesCh    chan string
-	ready      bool
-	width      int
-	height     int
-	current    view
-	stats      *types.Stats
-	rps        float64
-	recentLogs []*types.LogEntry
+	engine      *analysis.Engine
+	detector    *analysis.Detector
+	linesCh     chan string
+	ready       bool
+	width       int
+	height      int
+	current     view
+	stats       *types.Stats
+	rps         float64
+	recentLogs  []*types.LogEntry
+	windowStart time.Time
 
 	ipTable   table.Model
 	pathTable table.Model
@@ -70,11 +72,12 @@ func NewModel(linesCh chan string) Model {
 	eng.SetDetector(det)
 
 	return Model{
-		engine:     eng,
-		detector:   det,
-		linesCh:    linesCh,
-		current:    viewSummary,
-		recentLogs: make([]*types.LogEntry, 0, 20),
+		engine:      eng,
+		detector:    det,
+		linesCh:     linesCh,
+		current:     viewSummary,
+		recentLogs:  make([]*types.LogEntry, 0, 20),
+		windowStart: time.Now(),
 	}
 }
 
@@ -107,7 +110,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		m.initTables()
+		m = m.initTables()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -122,21 +125,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = viewSecurity
 		case "4":
 			m.current = viewTopIPs
-			m.refreshTables()
+			m = m.refreshTables()
 		case "5":
 			m.current = viewTopPaths
-			m.refreshTables()
+			m = m.refreshTables()
 		case "6":
 			m.current = viewTopUA
 		case "tab", "right":
 			if m.current < viewTopUA {
 				m.current++
-				m.refreshTables()
+				m = m.refreshTables()
 			}
 		case "shift+tab", "left":
 			if m.current > viewSummary {
 				m.current--
-				m.refreshTables()
+				m = m.refreshTables()
 			}
 		case "r":
 			eng := analysis.New(types.Filters{})
@@ -144,6 +147,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.engine = eng
 			m.stats = nil
 			m.recentLogs = make([]*types.LogEntry, 0, 20)
+			m.windowStart = time.Now()
 		}
 
 	case LineMsg:
@@ -159,9 +163,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForLines(m.linesCh)
 
 	case StreamEndMsg:
-		return m, nil
+		return m, tea.Quit
 
 	case TickMsg:
+		// Auto-reset the engine every 5 minutes so the dashboard does not
+		// accumulate unbounded maps over multi-hour sessions.
+		if time.Since(m.windowStart) > 5*time.Minute {
+			eng := analysis.New(types.Filters{})
+			eng.SetDetector(m.detector)
+			m.engine = eng
+			m.stats = nil
+			m.recentLogs = make([]*types.LogEntry, 0, 20)
+			m.windowStart = time.Now()
+		}
 		m.engine.Finalize()
 		s := m.engine.Stats()
 		m.stats = s
@@ -171,7 +185,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.rps = float64(s.TotalRequests) / elapsed
 		m.uaItems = analysis.TopN(s.UserAgentCounts, 15)
-		m.refreshTables()
+		m = m.refreshTables()
 
 		return m, tickEvery(2 * time.Second)
 	}
@@ -179,7 +193,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) initTables() {
+func (m Model) initTables() Model {
 	columns := []table.Column{
 		{Title: "#", Width: 4},
 		{Title: "IP", Width: 18},
@@ -189,7 +203,7 @@ func (m *Model) initTables() {
 	m.ipTable = table.New(
 		table.WithColumns(columns),
 		table.WithFocused(false),
-		table.WithHeight(min(15, m.height-10)),
+		table.WithHeight(max(1, min(15, m.height-10))),
 	)
 
 	pathCols := []table.Column{
@@ -201,13 +215,14 @@ func (m *Model) initTables() {
 	m.pathTable = table.New(
 		table.WithColumns(pathCols),
 		table.WithFocused(false),
-		table.WithHeight(min(15, m.height-10)),
+		table.WithHeight(max(1, min(15, m.height-10))),
 	)
+	return m
 }
 
-func (m *Model) refreshTables() {
+func (m Model) refreshTables() Model {
 	if !m.ready || m.stats == nil {
-		return
+		return m
 	}
 
 	s := m.stats
@@ -233,6 +248,7 @@ func (m *Model) refreshTables() {
 		})
 	}
 	m.pathTable.SetRows(pathRows)
+	return m
 }
 
 func (m Model) View() string {
@@ -295,22 +311,21 @@ func (m Model) renderSummary(b *strings.Builder) {
 	fmt.Fprintf(b, "  %s %.1f\n\n", styleLabel.Render("Requests/sec:"), m.rps)
 
 	fmt.Fprintf(b, "  %s:\n", styleLabel.Render("Status Codes"))
-	fmt.Fprintf(b, "    2xx Success: %s\n", styleOK.Render(fmt.Sprintf("%d (%.1f%%)", s.Status2xx, pct(s.Status2xx, total))))
-	fmt.Fprintf(b, "    3xx Redir:   %s\n", styleInfo.Render(fmt.Sprintf("%d (%.1f%%)", s.Status3xx, pct(s.Status3xx, total))))
-	fmt.Fprintf(b, "    4xx Client:  %s\n", styleWarn.Render(fmt.Sprintf("%d (%.1f%%)", s.Status4xx, pct(s.Status4xx, total))))
-	fmt.Fprintf(b, "    5xx Server:  %s\n\n", styleError.Render(fmt.Sprintf("%d (%.1f%%)", s.Status5xx, pct(s.Status5xx, total))))
-
-	fmt.Fprintf(b, "  %s %s\n", styleLabel.Render("Response Size:"), formatBytes(s.TotalBytes))
-	fmt.Fprintf(b, "  %s %s\n\n", styleLabel.Render("Avg Size:"), formatBytes(avgSize(s.TotalBytes, total)))
+	fmt.Fprintf(b, "    2xx Success: %s\n", styleOK.Render(fmt.Sprintf("%d (%.1f%%)", s.Status2xx, output.Pct(s.Status2xx, total))))
+	fmt.Fprintf(b, "    3xx Redir:   %s\n", styleInfo.Render(fmt.Sprintf("%d (%.1f%%)", s.Status3xx, output.Pct(s.Status3xx, total))))
+	fmt.Fprintf(b, "    4xx Client:  %s\n", styleWarn.Render(fmt.Sprintf("%d (%.1f%%)", s.Status4xx, output.Pct(s.Status4xx, total))))
+	fmt.Fprintf(b, "    5xx Server:  %s\n\n", styleError.Render(fmt.Sprintf("%d (%.1f%%)", s.Status5xx, output.Pct(s.Status5xx, total))))
+	fmt.Fprintf(b, "  %s %s\n", styleLabel.Render("Response Size:"), output.FormatBytes(s.TotalBytes))
+	fmt.Fprintf(b, "  %s %s\n\n", styleLabel.Render("Avg Size:"), output.FormatBytes(output.AvgSize(s.TotalBytes, total)))
 
 	fmt.Fprintf(b, "  %s:\n", styleLabel.Render("Latency Percentiles"))
 	if s.MinDuration < 1<<62 {
-		fmt.Fprintf(b, "    Min: %s\n", formatDuration(s.MinDuration))
+		fmt.Fprintf(b, "    Min: %s\n", output.FormatDuration(s.MinDuration))
 	}
-	fmt.Fprintf(b, "    Avg: %s\n", formatDuration(s.DurationSum/float64(max(s.TotalRequests, 1))))
-	fmt.Fprintf(b, "    Max: %s\n", formatDuration(s.MaxDuration))
-	fmt.Fprintf(b, "    P50: %s\n", formatDuration(s.Percentile50))
-	fmt.Fprintf(b, "    P95: %s\n", formatDuration(s.Percentile95))
+	fmt.Fprintf(b, "    Avg: %s\n", output.FormatDuration(s.DurationSum/float64(max(s.TotalRequests, 1))))
+	fmt.Fprintf(b, "    Max: %s\n", output.FormatDuration(s.MaxDuration))
+	fmt.Fprintf(b, "    P50: %s\n", output.FormatDuration(s.Percentile50))
+	fmt.Fprintf(b, "    P95: %s\n", output.FormatDuration(s.Percentile95))
 }
 
 func (m Model) renderRealtime(b *strings.Builder) {
@@ -328,8 +343,8 @@ func (m Model) renderRealtime(b *strings.Builder) {
 		methodStr := lipgloss.NewStyle().Bold(true).Render(e.Method)
 		pathStr := styleTailPath.Render(e.Path())
 		ipStr := styleTailIP.Render(e.RemoteIP)
-		sizeStr := formatBytes(e.Size)
-		durStr := formatDuration(e.Duration)
+		sizeStr := output.FormatBytes(e.Size)
+		durStr := output.FormatDuration(e.Duration)
 
 		uaInfo := ""
 		if e.IsBot {
@@ -398,66 +413,16 @@ func (m Model) renderUA(b *strings.Builder) {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if n <= 1 {
+		return "…"
+	}
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
-}
-
-func pct(n, total int64) float64 {
-	if total == 0 {
-		return 0
-	}
-	return float64(n) / float64(total) * 100
-}
-
-func avgSize(total int64, count int64) int64 {
-	if count == 0 {
-		return 0
-	}
-	return total / count
-}
-
-func formatBytes(b int64) string {
-	switch {
-	case b < 1024:
-		return fmt.Sprintf("%d B", b)
-	case b < 1024*1024:
-		return fmt.Sprintf("%.2f KB", float64(b)/1024)
-	case b < 1024*1024*1024:
-		return fmt.Sprintf("%.2f MB", float64(b)/(1024*1024))
-	default:
-		return fmt.Sprintf("%.2f GB", float64(b)/(1024*1024*1024))
-	}
-}
-
-func formatDuration(d float64) string {
-	switch {
-	case d < 0.001:
-		return fmt.Sprintf("%.0fµs", d*1_000_000)
-	case d < 1:
-		return fmt.Sprintf("%.2fms", d*1000)
-	case d < 60:
-		return fmt.Sprintf("%.2fs", d)
-	default:
-		return fmt.Sprintf("%.1fm", d/60)
-	}
+	return string(r[:n-1]) + "…"
 }
 
 func styleDimLine() string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("236")).Render(strings.Repeat("━", 60))
-}
-
-func max(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
