@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
@@ -34,11 +35,11 @@ func fromSource(src types.LogSource, follow bool) LogReader {
 	case types.SourceFile:
 		return &FileReader{paths: expandPaths(src.Path), follow: follow}
 	case types.SourceDocker:
-		return &DockerReader{container: src.Path}
+		return &DockerReader{container: src.Path, follow: follow}
 	case types.SourceK8s:
 		return &K8sReader{pod: src.Path, namespace: src.Namespace, follow: follow}
 	case types.SourceJournalctl:
-		return &JournalctlReader{unit: src.Path}
+		return &JournalctlReader{unit: src.Path, follow: follow}
 	default:
 		return &FileReader{paths: expandPaths(src.Path), follow: follow}
 	}
@@ -111,6 +112,26 @@ func (r *FileReader) Name() string {
 
 func (r *FileReader) Read(ctx context.Context) (<-chan string, error) {
 	out := newLineChannel(ctx)
+	if r.follow && len(r.paths) > 1 {
+		// In follow mode with multiple files, read them concurrently
+		// so all files are tailed in parallel. Without this, the first
+		// file blocks forever and the rest are never read.
+		var wg sync.WaitGroup
+		for _, path := range r.paths {
+			wg.Add(1)
+			go func(p string) {
+				defer wg.Done()
+				if err := readFileAndFollow(ctx, p, out); err != nil {
+					printReadError(p, err)
+				}
+			}(path)
+		}
+		go func() {
+			wg.Wait()
+			close(out)
+		}()
+		return out, nil
+	}
 	go func() {
 		defer close(out)
 		for _, path := range r.paths {
@@ -159,17 +180,24 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 		return err
 	}
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
+	initialReader := bufio.NewReaderSize(f, 1024*1024)
+	for {
+		line, err := initialReader.ReadString('\n')
+		if err != nil {
+			if len(line) > 0 {
+				pos, _ := f.Seek(0, io.SeekCurrent)
+				if _, err := f.Seek(pos-int64(len(line)), io.SeekStart); err != nil {
+					return err
+				}
+			}
+			break
+		}
+		line = strings.TrimRight(line, "\n")
 		select {
-		case out <- scanner.Text():
+		case out <- line:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return err
 	}
 
 	pos, err := f.Seek(0, io.SeekCurrent)
@@ -198,24 +226,31 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 				if err != nil {
 					return err
 				}
-			initialInfo, _ = f.Stat()
-		} else if info.Size() == pos {
+				initialInfo, err = f.Stat()
+				if err != nil {
+					return err
+				}
+			} else if info.Size() == pos {
 				continue
 			}
 
 			reader := bufio.NewReader(f)
 			for {
 				line, err := reader.ReadString('\n')
-				if len(line) > 0 {
-					line = strings.TrimRight(line, "\n")
-					select {
-					case out <- line:
-					case <-ctx.Done():
-						return ctx.Err()
-					}
-				}
 				if err != nil {
+					if len(line) > 0 {
+						pos, _ := f.Seek(0, io.SeekCurrent)
+						if _, err := f.Seek(pos-int64(len(line)), io.SeekStart); err != nil {
+							return err
+						}
+					}
 					break
+				}
+				line = strings.TrimRight(line, "\n")
+				select {
+				case out <- line:
+				case <-ctx.Done():
+					return ctx.Err()
 				}
 			}
 
@@ -226,14 +261,20 @@ func readFileAndFollow(ctx context.Context, path string, out chan<- string) erro
 
 type DockerReader struct {
 	container string
+	follow    bool
 }
 
 func (r *DockerReader) Name() string { return "docker:" + r.container }
 
 func (r *DockerReader) Read(ctx context.Context) (<-chan string, error) {
 	out := newLineChannel(ctx)
-	args := []string{"logs", "-f"}
-	if !isTerminal() {
+	args := []string{"logs"}
+	if r.follow {
+		args = append(args, "-f")
+		if !isTerminal() {
+			args = append(args, "--tail=all")
+		}
+	} else {
 		args = append(args, "--tail=all")
 	}
 	args = append(args, r.container)
@@ -272,14 +313,19 @@ func (r *K8sReader) Read(ctx context.Context) (<-chan string, error) {
 }
 
 type JournalctlReader struct {
-	unit string
+	unit   string
+	follow bool
 }
 
 func (r *JournalctlReader) Name() string { return "journalctl:" + r.unit }
 
 func (r *JournalctlReader) Read(ctx context.Context) (<-chan string, error) {
 	out := newLineChannel(ctx)
-	cmd := exec.CommandContext(ctx, "journalctl", "-u", r.unit, "--output=json", "--follow")
+	args := []string{"-u", r.unit, "--output=cat"}
+	if r.follow {
+		args = append(args, "--follow")
+	}
+	cmd := exec.CommandContext(ctx, "journalctl", args...)
 	return execLines(ctx, cmd, out)
 }
 
@@ -314,7 +360,10 @@ func execLines(ctx context.Context, cmd *exec.Cmd, out chan string) (<-chan stri
 }
 
 func isTerminal() bool {
-	stat, _ := os.Stdin.Stat()
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
 	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
