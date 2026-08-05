@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -75,5 +76,256 @@ func TestParseNonHandledMsg(t *testing.T) {
 	}
 	if entry != nil {
 		t.Errorf("expected nil entry for non-handled request message")
+	}
+}
+
+func TestParseRemoteAddrBracketedIPv6(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.5,"logger":"http.log.access","msg":"handled request","request":{"method":"GET","uri":"/","remote_addr":"[::1]:50432","proto":"HTTP/2.0"},"status":200}`
+	entry, err := Parse(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.RemoteIP != "::1" {
+		t.Errorf("expected RemoteIP ::1, got %q", entry.RemoteIP)
+	}
+}
+
+func TestParseRemoteAddrIPv6NoPort(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.5,"logger":"http.log.access","msg":"handled request","request":{"method":"GET","uri":"/","remote_addr":"2001:db8::1","proto":"HTTP/1.1"},"status":200}`
+	entry, err := Parse(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.RemoteIP != "2001:db8::1" {
+		t.Errorf("expected RemoteIP 2001:db8::1, got %q", entry.RemoteIP)
+	}
+}
+
+func TestParseRemoteAddrHostPort(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.5,"logger":"http.log.access","msg":"handled request","request":{"method":"GET","uri":"/","remote_addr":"192.168.1.5:54321","proto":"HTTP/1.1"},"status":200}`
+	entry, err := Parse(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.RemoteIP != "192.168.1.5" {
+		t.Errorf("expected RemoteIP 192.168.1.5, got %q", entry.RemoteIP)
+	}
+}
+
+func TestParseNumericStringFields(t *testing.T) {
+	line := `{"level":"info","ts":"1785148418.5","logger":"http.log.access","msg":"handled request","request":{"method":"GET","uri":"/","remote_ip":"1.2.3.4","proto":"HTTP/1.1"},"status":"200","size":"140","duration":"0.001"}`
+	entry, err := Parse(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.Status != 200 {
+		t.Errorf("expected status 200, got %d", entry.Status)
+	}
+	if entry.Size != 140 {
+		t.Errorf("expected size 140, got %d", entry.Size)
+	}
+	if entry.Duration != 0.001 {
+		t.Errorf("expected duration 0.001, got %f", entry.Duration)
+	}
+}
+
+func TestParseLatencySecondsPreferredOverNanoseconds(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.5,"msg":"handled request","request":{"method":"GET","uri":"/","remote_ip":"1.2.3.4","proto":"HTTP/1.1"},"latency":12345678,"latency_seconds":0.012345678,"status":200}`
+	entry, err := Parse(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.Duration != 0.012345678 {
+		t.Errorf("expected duration from latency_seconds 0.012345678, got %f", entry.Duration)
+	}
+}
+
+func TestExtractIP(t *testing.T) {
+	tests := []struct {
+		addr string
+		want string
+	}{
+		{"192.168.1.1", "192.168.1.1"},
+		{"192.168.1.1:80", "192.168.1.1"},
+		{"[::1]:50432", "::1"},
+		{"[2001:db8::1]:8080", "2001:db8::1"},
+		{"::1", "::1"},
+		{"2001:db8::1", "2001:db8::1"},
+		{"fe80::1%eth0", "fe80::1%eth0"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := extractIP(tt.addr); got != tt.want {
+			t.Errorf("extractIP(%q) = %q, want %q", tt.addr, got, tt.want)
+		}
+	}
+}
+
+func TestParseForwardedHeaders(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"10.0.0.1","method":"GET","uri":"/","headers":{"X-Forwarded-For":["203.0.113.5, 70.0.0.1"],"X-Real-Ip":["203.0.113.5"]}},"status":200}`
+
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if len(entry.ForwardedFor) != 2 || entry.ForwardedFor[0] != "203.0.113.5" {
+		t.Errorf("unexpected XFF: %v", entry.ForwardedFor)
+	}
+	if entry.RealIP != "203.0.113.5" {
+		t.Errorf("unexpected X-Real-IP: %s", entry.RealIP)
+	}
+	if got := entry.EffectiveClientIP(false); got != "10.0.0.1" {
+		t.Errorf("EffectiveClientIP(false) should be RemoteIP, got %s", got)
+	}
+	if got := entry.EffectiveClientIP(true); got != "70.0.0.1" {
+		t.Errorf("EffectiveClientIP(true) should pick last public XFF hop (trusted proxy), got %s", got)
+	}
+}
+
+func TestEffectiveClientIPSkipsPrivateXFF(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"10.0.0.1","method":"GET","uri":"/","headers":{"X-Forwarded-For":["192.168.1.1, 10.0.0.99"]}},"status":200}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	// All XFF hops are private → fall back to RemoteIP.
+	if got := entry.EffectiveClientIP(true); got != "10.0.0.1" {
+		t.Errorf("expected fallback to RemoteIP, got %s", got)
+	}
+}
+
+func TestParseEmptyLine(t *testing.T) {
+	entry, err := Parse("")
+	if err != nil {
+		t.Fatalf("unexpected error on empty line: %v", err)
+	}
+	if entry != nil {
+		t.Fatalf("expected nil entry on empty line, got %v", entry)
+	}
+}
+
+func TestParseNonJSON(t *testing.T) {
+	entry, err := Parse("this is not json")
+	if err == nil {
+		t.Fatal("expected error on non-JSON input")
+	}
+	if entry != nil {
+		t.Fatalf("expected nil entry on non-JSON, got %v", entry)
+	}
+}
+
+func TestParseNonCaddyJSON(t *testing.T) {
+	entry, err := Parse(`{"level":"info","msg":"some other message"}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry != nil {
+		t.Fatalf("expected nil for non-handled-request msg, got %v", entry)
+	}
+}
+
+func TestParseMissingFields(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"method":"GET","uri":"/"},"status":200}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.RemoteIP != "" {
+		t.Errorf("expected empty RemoteIP, got %s", entry.RemoteIP)
+	}
+	if entry.Method != "GET" {
+		t.Errorf("expected GET, got %s", entry.Method)
+	}
+}
+
+func TestParseAuthorizationHeader(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"/","headers":{"Authorization":["Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature"]}},"status":200}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.Authorization == "" {
+		t.Fatal("expected non-empty Authorization")
+	}
+	if len(entry.Authorization) > 500 {
+		t.Fatalf("Authorization not truncated: %d chars", len(entry.Authorization))
+	}
+}
+
+func TestParseAuthorizationTruncation(t *testing.T) {
+	longAuth := "Bearer " + strings.Repeat("A", 600)
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"/","headers":{"Authorization":["` + longAuth + `"]}},"status":200}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if len(entry.Authorization) != 500 {
+		t.Fatalf("expected 500 chars, got %d", len(entry.Authorization))
+	}
+}
+
+func TestParseSizeAsString(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"/"},"status":200,"size":"1024"}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.Size != 1024 {
+		t.Errorf("expected size 1024, got %d", entry.Size)
+	}
+}
+
+func TestParseDurationAsString(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"/"},"status":200,"duration":"0.123"}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.Duration != 0.123 {
+		t.Errorf("expected duration 0.123, got %f", entry.Duration)
+	}
+}
+
+func TestParseStatusAsString(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"/"},"status":"404"}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.Status != 404 {
+		t.Errorf("expected status 404, got %d", entry.Status)
+	}
+}
+
+func TestParseRemoteAddrFallback(t *testing.T) {
+	line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_addr":"5.6.7.8:12345","method":"GET","uri":"/"},"status":200}`
+	entry, err := Parse(line)
+	if err != nil || entry == nil {
+		t.Fatalf("parse error: %v entry=%v", err, entry)
+	}
+	if entry.RemoteIP != "5.6.7.8" {
+		t.Errorf("expected RemoteIP 5.6.7.8 from RemoteAddr, got %s", entry.RemoteIP)
+	}
+}
+
+func TestParsePath(t *testing.T) {
+	tests := []struct {
+		uri  string
+		want string
+	}{
+		{"/api/users/123", "/api/users/123"},
+		{"/api/users/123?foo=bar", "/api/users/123"},
+		{"", ""},
+		{"/", "/"},
+	}
+	for _, tt := range tests {
+		line := `{"level":"info","ts":1785148418.35,"msg":"handled request","request":{"remote_ip":"1.2.3.4","method":"GET","uri":"` + tt.uri + `"},"status":200}`
+		entry, err := Parse(line)
+		if err != nil || entry == nil {
+			t.Fatalf("parse error for uri=%q: %v entry=%v", tt.uri, err, entry)
+		}
+		if got := entry.Path(); got != tt.want {
+			t.Errorf("Path() for uri=%q = %q, want %q", tt.uri, got, tt.want)
+		}
 	}
 }

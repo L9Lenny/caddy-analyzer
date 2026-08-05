@@ -89,13 +89,29 @@ func Parse(line string) (*types.LogEntry, error) {
 			entry.Referer = ref[0]
 			entry.RefererDomain = extractDomain(ref[0])
 		}
+		if xff, ok := raw.Request.Headers["X-Forwarded-For"]; ok && len(xff) > 0 {
+			for _, h := range xff {
+				for _, hop := range strings.Split(h, ",") {
+					hop = strings.TrimSpace(hop)
+					if hop != "" {
+						entry.ForwardedFor = append(entry.ForwardedFor, hop)
+					}
+				}
+			}
+		}
+		if xri, ok := raw.Request.Headers["X-Real-Ip"]; ok && len(xri) > 0 {
+			entry.RealIP = strings.TrimSpace(xri[0])
+		}
+		if auth, ok := raw.Request.Headers["Authorization"]; ok && len(auth) > 0 {
+			a := auth[0]
+			if len(a) > 500 {
+				a = a[:500]
+			}
+			entry.Authorization = a
+		}
 
 		if entry.RemoteIP == "" && entry.RemoteAddr != "" {
-			if idx := strings.LastIndex(entry.RemoteAddr, ":"); idx > 0 {
-				entry.RemoteIP = entry.RemoteAddr[:idx]
-			} else {
-				entry.RemoteIP = entry.RemoteAddr
-			}
+			entry.RemoteIP = extractIP(entry.RemoteAddr)
 		}
 
 		if raw.Request.TLS != nil {
@@ -112,18 +128,40 @@ func Parse(line string) (*types.LogEntry, error) {
 	}
 
 	if raw.Status.String() != "" {
-		s, _ := raw.Status.Int64()
-		entry.Status = int(s)
+		s, err := raw.Status.Int64()
+		if err == nil {
+			entry.Status = int(s)
+		}
 	}
 
 	if raw.Size.String() != "" {
-		s, _ := raw.Size.Int64()
-		entry.Size = s
+		s, err := raw.Size.Int64()
+		if err == nil {
+			entry.Size = s
+		}
 	}
 
-	entry.Duration = parseDuration(raw.Duration, raw.Latency, raw.LatencyS)
+	entry.Duration = parseDuration(raw.Duration, raw.LatencyS, raw.Latency)
 
 	return entry, nil
+}
+
+func extractIP(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if strings.HasPrefix(addr, "[") {
+		if end := strings.Index(addr, "]"); end > 0 {
+			return addr[1:end]
+		}
+	}
+	if strings.Count(addr, ":") == 1 {
+		if idx := strings.LastIndex(addr, ":"); idx > 0 {
+			return addr[:idx]
+		}
+	}
+	return addr
 }
 
 func parseDuration(values ...json.Number) float64 {
@@ -185,37 +223,42 @@ func extractDomain(referer string) string {
 	return u.Host
 }
 
+type botEntry struct {
+	key  string
+	name string
+}
+
+var botList = []botEntry{
+	{"googlebot", "Googlebot"},
+	{"google-read-aloud", "Google-Read-Aloud"},
+	{"bingbot", "Bingbot"},
+	{"yandexbot", "YandexBot"},
+	{"duckduckbot", "DuckDuckBot"},
+	{"baiduspider", "Baiduspider"},
+	{"ahrefsbot", "AhrefsBot"},
+	{"semrushbot", "SemrushBot"},
+	{"mj12bot", "MJ12bot"},
+	{"facebookexternalhit", "FacebookBot"},
+	{"twitterbot", "TwitterBot"},
+	{"python-requests", "Python Requests"},
+	{"curl", "cURL"},
+	{"wget", "Wget"},
+	{"sqlmap", "sqlmap"},
+	{"nikto", "Nikto"},
+	{"gobuster", "GoBuster"},
+	{"dirbuster", "DirBuster"},
+}
+
 func classifyUserAgent(entry *types.LogEntry) {
 	ua := strings.ToLower(entry.UserAgent)
 	if ua == "" {
 		return
 	}
 
-	bots := map[string]string{
-		"googlebot":          "Googlebot",
-		"google-read-aloud": "Google-Read-Aloud",
-		"bingbot":            "Bingbot",
-		"yandexbot":          "YandexBot",
-		"duckduckbot":        "DuckDuckBot",
-		"baiduspider":        "Baiduspider",
-		"ahrefsbot":          "AhrefsBot",
-		"semrushbot":         "SemrushBot",
-		"mj12bot":            "MJ12bot",
-		"facebookexternalhit": "FacebookBot",
-		"twitterbot":         "TwitterBot",
-		"python-requests":    "Python Requests",
-		"curl":               "cURL",
-		"wget":               "Wget",
-		"sqlmap":             "sqlmap",
-		"nikto":              "Nikto",
-		"gobuster":           "GoBuster",
-		"dirbuster":          "DirBuster",
-	}
-
-	for key, name := range bots {
-		if strings.Contains(ua, key) {
+	for _, b := range botList {
+		if strings.Contains(ua, b.key) {
 			entry.IsBot = true
-			entry.BotName = name
+			entry.BotName = b.name
 			break
 		}
 	}
