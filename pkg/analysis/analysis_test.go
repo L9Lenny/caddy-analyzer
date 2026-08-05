@@ -37,17 +37,17 @@ func TestEngineProcessing(t *testing.T) {
 			TLSVersion: "TLS 1.3",
 		},
 		{
-			Timestamp:  now.Add(2 * time.Second),
-			Method:     "GET",
-			URI:        "/index.html",
-			Host:       "example.com",
-			RemoteIP:   "2.2.2.2",
-			Status:     200,
-			Size:       1000,
-			Duration:   0.002,
-			Proto:      "HTTP/1.1",
-			IsBot:      true,
-			BotName:    "Googlebot",
+			Timestamp: now.Add(2 * time.Second),
+			Method:    "GET",
+			URI:       "/index.html",
+			Host:      "example.com",
+			RemoteIP:  "2.2.2.2",
+			Status:    200,
+			Size:      1000,
+			Duration:  0.002,
+			Proto:     "HTTP/1.1",
+			IsBot:     true,
+			BotName:   "Googlebot",
 		},
 	}
 
@@ -94,5 +94,28 @@ func TestEngineFilterStatus(t *testing.T) {
 
 	if engine.Count() != 1 {
 		t.Errorf("expected 1 entry matching filter, got %d", engine.Count())
+	}
+}
+
+func TestMatchEntryGrepRegex(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		uri     string
+		want    bool
+	}{
+		{"literal substring", "/api/v1", "/api/v1/users", true},
+		{"regex alternation", "/api/(v[23]|beta)", "/api/v2/users", true},
+		{"regex no match", "/api/(v[23]|beta)", "/api/v1/users", false},
+		{"invalid regex falls back to substring", "[invalid(", "[invalid(", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{URI: tt.uri, Method: "GET"}
+			got := MatchEntry(entry, types.Filters{GrepPattern: tt.pattern})
+			if got != tt.want {
+				t.Errorf("MatchEntry grep %q on %q = %v, want %v", tt.pattern, tt.uri, got, tt.want)
+			}
+		})
 	}
 }
