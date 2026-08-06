@@ -5,7 +5,7 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-08-05
+## [0.3.0] - 2026-08-06
 
 ### Added
 - **3 new detection categories** (26 total): JWT abuse (`jwt_abuse`), object enumeration/BOLA (`object_enumeration`), beaconing/C2 (`beaconing`). All tagged with MITRE ATT&CK technique IDs.
