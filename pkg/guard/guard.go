@@ -721,10 +721,14 @@ func (g *Guard) Count() int {
 }
 
 func (g *Guard) Detector() *analysis.Detector {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	return g.detector
 }
 
 func (g *Guard) Engine() *analysis.Engine {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	return g.engine
 }
 
@@ -903,13 +907,13 @@ func (g *Guard) Tick(ctx context.Context) []Candidate {
 		}
 	}
 
+	g.mu.Lock()
 	g.detector = analysis.NewDetector()
 	if g.cfg.UARotationThreshold > 0 {
 		g.detector.SetUARotationThreshold(g.cfg.UARotationThreshold)
 	}
 	g.engine = analysis.New(types.Filters{})
 	g.engine.Stats().StartTime = now
-	g.mu.Lock()
 	g.detectCounts = make(map[string]int)
 	g.mu.Unlock()
 	g.sliding.resetAuthFailPaths()

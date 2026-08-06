@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,13 @@ func TestFileReaderFollowAppends(t *testing.T) {
 }
 
 func TestFileReaderFollowRotation(t *testing.T) {
+	// Windows cannot rename a file that another handle has open (no
+	// FILE_SHARE_DELETE on os.Open), so the rename-while-open rotation
+	// pattern used here is Unix-only. The reader still detects truncation
+	// (size < pos) and replacement on all platforms.
+	if runtime.GOOS == "windows" {
+		t.Skip("rename of an open file is not supported on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "access.log")
 	if err := os.WriteFile(path, []byte("old1\n"), 0644); err != nil {

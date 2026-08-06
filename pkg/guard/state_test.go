@@ -297,9 +297,18 @@ func TestRunFlushesStateOnShutdown(t *testing.T) {
 		close(done)
 	}()
 
-	// Block an IP with an expiry so runExpiryLoop has pending state.
-	g.Evaluate(caddyLine("1.2.3.4", "/api", "GET", 200))
-	g.Tick(ctx)
+	// Block an IP with an expiry so runExpiryLoop has pending state. Feed the
+	// line through Run's own pipeline: calling Tick() directly here would race
+	// with Run's ticker (which fires every Window), so wait for Run's tick to
+	// process the candidate instead.
+	linesCh <- caddyLine("1.2.3.4", "/api", "GET", 200)
+	deadline := time.Now().Add(2 * time.Second)
+	for !g.IsBlocked("1.2.3.4") {
+		if time.Now().After(deadline) {
+			t.Fatal("IP 1.2.3.4 was not blocked within 2s")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// Cancel and wait for Run to return — it should flush state.
 	cancel()
