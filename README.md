@@ -12,7 +12,6 @@
   <a href="https://github.com/L9Lenny/caddy-analyzer/actions"><img src="https://github.com/L9Lenny/caddy-analyzer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square" alt="License"></a>
   <a href="https://github.com/L9Lenny/caddy-analyzer/releases"><img src="https://img.shields.io/github/v/release/L9Lenny/caddy-analyzer?style=flat-square&color=fbbf24" alt="Release"></a>
-  <a href="https://goreportcard.com/report/github.com/L9Lenny/caddy-analyzer"><img src="https://goreportcard.com/badge/github.com/L9Lenny/caddy-analyzer?style=flat-square" alt="Go Report Card"></a>
   <a href="https://github.com/L9Lenny/caddy-analyzer"><img src="https://img.shields.io/github/stars/L9Lenny/caddy-analyzer?style=flat-square" alt="Stars"></a>
 </p>
 
