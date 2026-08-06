@@ -8,14 +8,17 @@ import (
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
 
-func (r *Report) printHTML() {
+func (r *Report) printHTML() error {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
-	topPaths := analysis.TopN(s.PathCounts, r.top)
-	topIPs := analysis.TopN(s.RemoteIPCounts, r.top)
-	topUAs := analysis.TopN(s.UserAgentCounts, r.top)
-	topMethods := analysis.TopN(s.MethodCounts, r.top)
+	var topPaths, topIPs, topUAs, topMethods []types.CountItem
+	if r.top > 0 {
+		topPaths = analysis.TopN(s.PathCounts, r.top)
+		topIPs = analysis.TopN(s.RemoteIPCounts, r.top)
+		topUAs = analysis.TopN(s.UserAgentCounts, r.top)
+		topMethods = analysis.TopN(s.MethodCounts, r.top)
+	}
 	topProtos := analysis.TopN(s.ProtoCounts, 5)
 	topTLS := analysis.TopN(s.TLSVersionCounts, 5)
 	topBots := analysis.TopN(s.BotCounts, 5)
@@ -26,7 +29,8 @@ func (r *Report) printHTML() {
 	html := generateHTMLReport(s, total, r.engine.RPS(), r.engine.AvgDuration(),
 		topPaths, topIPs, topUAs, topMethods, topProtos, topTLS, topBots, topReferers, topPathBytes, suspicious, r.detect, r.activeFilters(), s.SuspiciousDetails)
 
-	_, _ = fmt.Fprint(r.writer, html)
+	_, err := fmt.Fprint(r.writer, html)
+	return err
 }
 
 func generateHTMLReport(
@@ -57,6 +61,7 @@ func generateHTMLReport(
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>caddy-analyzer report</title>
     <style>
@@ -297,10 +302,10 @@ func generateHTMLReport(
 		cardClass(errPct), errPct, botPct,
 		renderTableRows(topPaths, total),
 		renderTableRows(topIPs, total),
-		s.Status2xx, pct(s.Status2xx, total),
-		s.Status3xx, pct(s.Status3xx, total),
-		s.Status4xx, pct(s.Status4xx, total),
-		s.Status5xx, pct(s.Status5xx, total),
+		s.Status2xx, Pct(s.Status2xx, total),
+		s.Status3xx, Pct(s.Status3xx, total),
+		s.Status4xx, Pct(s.Status4xx, total),
+		s.Status5xx, Pct(s.Status5xx, total),
 		renderMixedRows(topProtos, topTLS),
 		renderSecurityAlertsHTML(suspicious, suspiciousDetails, detect),
 	)

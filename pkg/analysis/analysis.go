@@ -3,11 +3,44 @@ package analysis
 import (
 	"fmt"
 	"net/netip"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
+
+// grepCache caches compiled grep patterns across entries so a multi-million-line
+// log does not recompile the same regex per row. Patterns that are not valid
+// regex fall back to case-insensitive substring matching.
+var grepCache sync.Map
+
+type grepMatcher struct {
+	re  *regexp.Regexp
+	lit string
+}
+
+func grepCompile(pattern string) grepMatcher {
+	if m, ok := grepCache.Load(pattern); ok {
+		return m.(grepMatcher)
+	}
+	var gm grepMatcher
+	if re, err := regexp.Compile("(?i)" + pattern); err == nil {
+		gm.re = re
+	} else {
+		gm.lit = strings.ToLower(pattern)
+	}
+	grepCache.Store(pattern, gm)
+	return gm
+}
+
+func (gm grepMatcher) match(target string) bool {
+	if gm.re != nil {
+		return gm.re.MatchString(target)
+	}
+	return strings.Contains(strings.ToLower(target), gm.lit)
+}
 
 type Engine struct {
 	filters  types.Filters
@@ -40,6 +73,16 @@ func (e *Engine) Process(entry *types.LogEntry) {
 				if len(e.stats.SuspiciousDetails[entry.RemoteIP]) < 10 {
 					e.stats.SuspiciousDetails[entry.RemoteIP] = append(e.stats.SuspiciousDetails[entry.RemoteIP], detail)
 				}
+				if len(e.stats.SuspiciousDetections[entry.RemoteIP]) < 50 {
+					e.stats.SuspiciousDetections[entry.RemoteIP] = append(e.stats.SuspiciousDetections[entry.RemoteIP], types.DetectionRecord{
+						Type:       string(det.Type),
+						Desc:       det.Desc,
+						Confidence: det.Confidence,
+						Method:     entry.Method,
+						URI:        entry.URI,
+						Status:     entry.Status,
+					})
+				}
 			}
 		}
 	}
@@ -48,21 +91,23 @@ func (e *Engine) Process(entry *types.LogEntry) {
 	s := e.stats
 	s.TotalRequests++
 
-	if s.StartTime.IsZero() || entry.Timestamp.Before(s.StartTime) {
-		s.StartTime = entry.Timestamp
-	}
-	if entry.Timestamp.After(s.EndTime) {
-		s.EndTime = entry.Timestamp
+	if !entry.Timestamp.IsZero() {
+		if s.StartTime.IsZero() || entry.Timestamp.Before(s.StartTime) {
+			s.StartTime = entry.Timestamp
+		}
+		if entry.Timestamp.After(s.EndTime) {
+			s.EndTime = entry.Timestamp
+		}
 	}
 
 	s.StatusCounts[entry.Status]++
-	s.MethodCounts[entry.Method]++
-	s.PathCounts[entry.Path()]++
-	s.HostCounts[entry.Host]++
-	s.RemoteAddrCounts[entry.RemoteAddr]++
-	s.UserAgentCounts[entry.UserAgent]++
+	s.IncStrCount(s.MethodCounts, entry.Method)
+	s.IncStrCount(s.PathCounts, entry.Path())
+	s.IncStrCount(s.HostCounts, entry.Host)
+	s.IncStrCount(s.RemoteAddrCounts, entry.RemoteAddr)
+	s.IncStrCount(s.UserAgentCounts, entry.UserAgent)
 	s.TotalBytes += entry.Size
-	s.PathBytesMap[entry.Path()] += entry.Size
+	s.AddStrBytes(s.PathBytesMap, entry.Path(), entry.Size)
 
 	if entry.Proto != "" {
 		s.ProtoCounts[entry.Proto]++
@@ -79,22 +124,23 @@ func (e *Engine) Process(entry *types.LogEntry) {
 		if botName == "" {
 			botName = "Unknown Bot"
 		}
-		s.BotCounts[botName]++
+		s.IncStrCount(s.BotCounts, botName)
 	} else {
 		s.HumanRequests++
 	}
 
 	if entry.RefererDomain != "" {
-		s.RefererCounts[entry.RefererDomain]++
+		s.IncStrCount(s.RefererCounts, entry.RefererDomain)
 	}
 
 	if entry.RemoteIP != "" {
-		s.RemoteIPCounts[entry.RemoteIP]++
-		s.IPBytesMap[entry.RemoteIP] += entry.Size
+		s.IncStrCount(s.RemoteIPCounts, entry.RemoteIP)
+		s.AddStrBytes(s.IPBytesMap, entry.RemoteIP, entry.Size)
 	}
 
 	if entry.Status >= 500 {
 		s.Errors++
+		s.IncStrCount(s.PathErrorCounts, entry.Path())
 	}
 	switch {
 	case entry.Status >= 200 && entry.Status < 300:
@@ -108,11 +154,13 @@ func (e *Engine) Process(entry *types.LogEntry) {
 	}
 
 	s.DurationSum += entry.Duration
-	if entry.Duration > s.MaxDuration {
-		s.MaxDuration = entry.Duration
-	}
-	if entry.Duration < s.MinDuration {
-		s.MinDuration = entry.Duration
+	if entry.Duration > 0 {
+		if entry.Duration > s.MaxDuration {
+			s.MaxDuration = entry.Duration
+		}
+		if entry.Duration < s.MinDuration {
+			s.MinDuration = entry.Duration
+		}
 	}
 	s.AddDuration(entry.Duration)
 }
@@ -183,20 +231,20 @@ func (e *Engine) match(entry *types.LogEntry) bool {
 }
 
 type DiffResult struct {
-	BaseRequests    int64
-	CurrRequests    int64
-	RequestsDelta   int64
-	RequestsPct     float64
-	BaseRPS         float64
-	CurrRPS         float64
-	RPSDelta        float64
-	BaseErrors      int64
-	CurrErrors      int64
-	ErrorsDelta     int64
-	BaseAvgDuration float64
-	CurrAvgDuration float64
-	AvgDurDelta     float64
-	NewErrorPaths   []string
+	BaseRequests    int64    `json:"base_requests"`
+	CurrRequests    int64    `json:"curr_requests"`
+	RequestsDelta   int64    `json:"requests_delta"`
+	RequestsPct     float64  `json:"requests_pct"`
+	BaseRPS         float64  `json:"base_rps"`
+	CurrRPS         float64  `json:"curr_rps"`
+	RPSDelta        float64  `json:"rps_delta"`
+	BaseErrors      int64    `json:"base_errors"`
+	CurrErrors      int64    `json:"curr_errors"`
+	ErrorsDelta     int64    `json:"errors_delta"`
+	BaseAvgDuration float64  `json:"base_avg_duration"`
+	CurrAvgDuration float64  `json:"curr_avg_duration"`
+	AvgDurDelta     float64  `json:"avg_dur_delta"`
+	NewErrorPaths   []string `json:"new_error_paths"`
 }
 
 func CompareStats(baseEngine, currEngine *Engine) DiffResult {
@@ -216,14 +264,19 @@ func CompareStats(baseEngine, currEngine *Engine) DiffResult {
 	bAvgDur := baseEngine.AvgDuration()
 	cAvgDur := currEngine.AvgDuration()
 
+	// New error paths: paths that produced 5xx errors in the target but
+	// did NOT produce 5xx in the baseline. Previously this surfaced any
+	// new path regardless of status, which was misleading.
 	var newErrPaths []string
-	for path, count := range c.PathCounts {
-		if count > 0 {
-			if _, exists := b.PathCounts[path]; !exists {
-				newErrPaths = append(newErrPaths, path)
-			}
+	for path, errCount := range c.PathErrorCounts {
+		if errCount <= 0 {
+			continue
+		}
+		if baseErr, ok := b.PathErrorCounts[path]; !ok || baseErr == 0 {
+			newErrPaths = append(newErrPaths, path)
 		}
 	}
+	sort.Strings(newErrPaths)
 	if len(newErrPaths) > 10 {
 		newErrPaths = newErrPaths[:10]
 	}
@@ -271,7 +324,7 @@ func MatchEntry(entry *types.LogEntry, filters types.Filters) bool {
 	if filters.PathGlob != "" && !matchGlob(filters.PathGlob, entry.Path()) {
 		return false
 	}
-	if filters.Host != "" && !strings.Contains(entry.Host, filters.Host) {
+	if filters.Host != "" && !strings.Contains(strings.ToLower(entry.Host), strings.ToLower(filters.Host)) {
 		return false
 	}
 	if filters.MinLatency > 0 && entry.Duration < filters.MinLatency {
@@ -314,9 +367,8 @@ func MatchEntry(entry *types.LogEntry, filters types.Filters) bool {
 		return false
 	}
 	if filters.GrepPattern != "" {
-		pat := strings.ToLower(filters.GrepPattern)
-		target := strings.ToLower(entry.URI + " " + entry.UserAgent + " " + entry.RemoteIP + " " + entry.Host)
-		if !strings.Contains(target, pat) {
+		target := entry.URI + " " + entry.UserAgent + " " + entry.RemoteIP + " " + entry.Host
+		if !grepCompile(filters.GrepPattern).match(target) {
 			return false
 		}
 	}
@@ -341,19 +393,48 @@ func ipMatch(pattern, ip string) bool {
 	return pattern == ip
 }
 
+// globCache caches compiled glob patterns so a multi-million-line log does
+// not recompile the same glob per row.
+var globCache sync.Map
+
 func matchGlob(pattern, s string) bool {
 	if pattern == "*" || pattern == "" {
 		return true
 	}
-	if strings.HasPrefix(pattern, "*") && strings.HasSuffix(pattern, "*") {
-		sub := pattern[1 : len(pattern)-1]
-		return strings.Contains(s, sub)
+	var re *regexp.Regexp
+	if v, ok := globCache.Load(pattern); ok {
+		re = v.(*regexp.Regexp)
+	} else {
+		re = compileGlob(pattern)
+		globCache.Store(pattern, re)
 	}
-	if strings.HasPrefix(pattern, "*") {
-		return strings.HasSuffix(s, pattern[1:])
-	}
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(s, pattern[:len(pattern)-1])
+	if re != nil {
+		return re.MatchString(s)
 	}
 	return s == pattern
+}
+
+// compileGlob converts a glob pattern into a case-insensitive anchored regex.
+// `*` matches any sequence (including `/`), `?` matches any single char.
+// Returns nil if the pattern cannot be compiled as a regex (caller falls back
+// to exact match).
+func compileGlob(pattern string) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("(?i)^")
+	for _, r := range pattern {
+		switch r {
+		case '*':
+			b.WriteString(".*")
+		case '?':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+	b.WriteString("$")
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		return nil
+	}
+	return re
 }

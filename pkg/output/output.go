@@ -27,14 +27,14 @@ const (
 )
 
 var (
-	styleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	styleLabel   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
-	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
-	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleInfo    = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
-	styleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	styleBar     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+	styleHeader = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	styleLabel  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
+	styleOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	styleWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+	styleError  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	styleInfo   = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
+	styleDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleBar    = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 
 	styleList2xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
 	styleList3xx  = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
@@ -65,6 +65,7 @@ type Report struct {
 	sections types.TopSections
 	writer   io.Writer
 	detect   bool
+	defang   bool
 	filters  types.Filters
 }
 
@@ -94,6 +95,10 @@ func (r *Report) SetWriter(w io.Writer) {
 
 func (r *Report) SetDetect(d bool) {
 	r.detect = d
+}
+
+func (r *Report) SetDefang(d bool) {
+	r.defang = d
 }
 
 func (r *Report) SetFilters(f types.Filters) {
@@ -160,46 +165,216 @@ func (r *Report) activeFilters() []string {
 	return f
 }
 
-func (r *Report) Print() {
+func (r *Report) Print() error {
+	if r.defang {
+		s := r.engine.Stats()
+		orig := statsMaps{
+			remoteIPCounts:       s.RemoteIPCounts,
+			remoteAddrCounts:     s.RemoteAddrCounts,
+			ipBytesMap:           s.IPBytesMap,
+			suspiciousIPs:        s.SuspiciousIPs,
+			suspiciousDetails:    s.SuspiciousDetails,
+			suspiciousDetections: s.SuspiciousDetections,
+		}
+		s.RemoteIPCounts = defangMap(s.RemoteIPCounts)
+		s.RemoteAddrCounts = defangMap(s.RemoteAddrCounts)
+		s.IPBytesMap = defangMap(s.IPBytesMap)
+		s.SuspiciousIPs = defangMap(s.SuspiciousIPs)
+		s.SuspiciousDetails = defangStringSliceMap(s.SuspiciousDetails)
+		s.SuspiciousDetections = defangDetectionMap(s.SuspiciousDetections)
+		defer func() {
+			s.RemoteIPCounts = orig.remoteIPCounts
+			s.RemoteAddrCounts = orig.remoteAddrCounts
+			s.IPBytesMap = orig.ipBytesMap
+			s.SuspiciousIPs = orig.suspiciousIPs
+			s.SuspiciousDetails = orig.suspiciousDetails
+			s.SuspiciousDetections = orig.suspiciousDetections
+		}()
+	}
 	switch r.format {
 	case FormatJSON:
-		r.printJSON()
+		return r.printJSON()
 	case FormatCSV:
-		r.printCSV()
+		return r.printCSV()
 	case FormatHTML:
-		r.printHTML()
+		return r.printHTML()
 	default:
-		r.printTable()
+		return r.printTable()
 	}
 }
 
-func (r *Report) printTable() {
+type statsMaps struct {
+	remoteIPCounts       map[string]int64
+	remoteAddrCounts     map[string]int64
+	ipBytesMap           map[string]int64
+	suspiciousIPs        map[string]int64
+	suspiciousDetails    map[string][]string
+	suspiciousDetections map[string][]types.DetectionRecord
+}
+
+func defangMap(m map[string]int64) map[string]int64 {
+	if m == nil {
+		return m
+	}
+	out := make(map[string]int64, len(m))
+	for k, v := range m {
+		out[Defang(k)] = v
+	}
+	return out
+}
+
+func defangStringSliceMap(m map[string][]string) map[string][]string {
+	if m == nil {
+		return m
+	}
+	out := make(map[string][]string, len(m))
+	for k, v := range m {
+		dv := make([]string, len(v))
+		for i, s := range v {
+			dv[i] = Defang(s)
+		}
+		out[Defang(k)] = dv
+	}
+	return out
+}
+
+func defangDetectionMap(m map[string][]types.DetectionRecord) map[string][]types.DetectionRecord {
+	if m == nil {
+		return m
+	}
+	out := make(map[string][]types.DetectionRecord, len(m))
+	for k, v := range m {
+		dv := make([]types.DetectionRecord, len(v))
+		for i, r := range v {
+			r.URI = Defang(r.URI)
+			r.Desc = Defang(r.Desc)
+			dv[i] = r
+		}
+		out[Defang(k)] = dv
+	}
+	return out
+}
+
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (e *errWriter) Write(p []byte) (int, error) {
+	if e.err != nil {
+		return 0, e.err
+	}
+	n, err := e.w.Write(p)
+	if err != nil {
+		e.err = err
+	}
+	return n, err
+}
+
+func isTerminalWriter(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func IsTerminal(w io.Writer) bool {
+	return isTerminalWriter(w)
+}
+
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == 0x1b {
+			i++
+			if i >= len(s) {
+				break
+			}
+			switch s[i] {
+			case '[': // CSI: consume parameters and final byte
+				for i+1 < len(s) {
+					i++
+					if s[i] >= 0x40 && s[i] <= 0x7e {
+						break
+					}
+				}
+			case ']': // OSC: consume until BEL
+				for i+1 < len(s) {
+					i++
+					if s[i] == 0x07 {
+						break
+					}
+				}
+			}
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+func csvSafe(s string) string {
+	if s == "" {
+		return s
+	}
+	// Tab and CR at position 0 are formula triggers in some spreadsheets.
+	if s[0] == '\t' || s[0] == '\r' {
+		return "'" + s
+	}
+	// Defeat formula injection in spreadsheet apps (Excel, LibreOffice,
+	// Google Sheets): any cell whose first non-whitespace byte is one of
+	// the formula trigger characters gets a single-quote prefix. Trim left
+	// first so leading spaces cannot smuggle a "=" past the check.
+	trimmed := strings.TrimLeft(s, " \t\r\n")
+	if len(trimmed) == 0 {
+		return s
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + s
+	}
+	return s
+}
+
+func SafeCell(s string) string {
+	return csvSafe(stripANSI(s))
+}
+
+func (r *Report) printTable() error {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 	useColor := r.useColor()
 
+	ew := &errWriter{w: r.writer}
+
 	if r.detect {
-		r.printDetectTable(s, total, useColor)
-		return
+		return r.printDetectTable(s, total, useColor, ew)
 	}
 
 	if useColor {
-		_, _ = fmt.Fprintln(r.writer, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
-		_, _ = fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 45)))
+		_, _ = fmt.Fprintln(ew, styleHeader.Render("CADDY LOG ANALYSIS REPORT"))
+		_, _ = fmt.Fprintln(ew, styleDim.Render(strings.Repeat("=", 45)))
 	} else {
-		_, _ = fmt.Fprintln(r.writer, "CADDY LOG ANALYSIS REPORT")
-		_, _ = fmt.Fprintln(r.writer, strings.Repeat("=", 45))
+		_, _ = fmt.Fprintln(ew, "CADDY LOG ANALYSIS REPORT")
+		_, _ = fmt.Fprintln(ew, strings.Repeat("=", 45))
 	}
 	if filters := r.activeFilters(); len(filters) > 0 {
 		if useColor {
-			_, _ = fmt.Fprintf(r.writer, "%s %s\n", styleInfo.Render("Filters:"), strings.Join(filters, "  "))
+			_, _ = fmt.Fprintf(ew, "%s %s\n", styleInfo.Render("Filters:"), strings.Join(filters, "  "))
 		} else {
-			_, _ = fmt.Fprintf(r.writer, "Filters: %s\n", strings.Join(filters, "  "))
+			_, _ = fmt.Fprintf(ew, "Filters: %s\n", strings.Join(filters, "  "))
 		}
 	}
-	_, _ = fmt.Fprintln(r.writer)
+	_, _ = fmt.Fprintln(ew)
 
-	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(ew, 0, 0, 3, ' ', 0)
 
 	duration := "N/A"
 	if !s.EndTime.IsZero() && !s.StartTime.IsZero() {
@@ -230,16 +405,23 @@ func (r *Report) printTable() {
 	}
 	_, _ = fmt.Fprintf(w, "%s:\n", statusLabel)
 
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleOK.Render("2xx Success:"), s.Status2xx, pct(s.Status2xx, total), renderBarGraph(s.Status2xx, total, 15, useColor))
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleInfo.Render("3xx Redirect:"), s.Status3xx, pct(s.Status3xx, total), renderBarGraph(s.Status3xx, total, 15, useColor))
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleWarn.Render("4xx Client Err:"), s.Status4xx, pct(s.Status4xx, total), renderBarGraph(s.Status4xx, total, 15, useColor))
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", styleError.Render("5xx Server Err:"), s.Status5xx, pct(s.Status5xx, total), renderBarGraph(s.Status5xx, total, 15, useColor))
+	renderLabel := func(style lipgloss.Style, text string) string {
+		if useColor {
+			return style.Render(text)
+		}
+		return text
+	}
+
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", renderLabel(styleOK, "2xx Success:"), s.Status2xx, Pct(s.Status2xx, total), renderBarGraph(s.Status2xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", renderLabel(styleInfo, "3xx Redirect:"), s.Status3xx, Pct(s.Status3xx, total), renderBarGraph(s.Status3xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", renderLabel(styleWarn, "4xx Client Err:"), s.Status4xx, Pct(s.Status4xx, total), renderBarGraph(s.Status4xx, total, 15, useColor))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\t%s\n", renderLabel(styleError, "5xx Server Err:"), s.Status5xx, Pct(s.Status5xx, total), renderBarGraph(s.Status5xx, total, 15, useColor))
 
 	errStyle := styleOK
 	if s.Errors > 0 {
 		errStyle = styleError
 	}
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", errStyle.Render("Total Errors (5xx):"), s.Errors, pct(s.Errors, total))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", renderLabel(errStyle, "Total Errors (5xx):"), s.Errors, Pct(s.Errors, total))
 
 	szLabel := "Response Size & Bandwidth"
 	if useColor {
@@ -247,7 +429,7 @@ func (r *Report) printTable() {
 	}
 	_, _ = fmt.Fprintf(w, "%s:\n", szLabel)
 	_, _ = fmt.Fprintf(w, "  %s\t%s\n", "Total Transferred:", FormatBytes(s.TotalBytes))
-	_, _ = fmt.Fprintf(w, "  %s\t%s\n\n", "Avg Response Size:", FormatBytes(avgSize(s.TotalBytes, total)))
+	_, _ = fmt.Fprintf(w, "  %s\t%s\n\n", "Avg Response Size:", FormatBytes(AvgSize(s.TotalBytes, total)))
 
 	durLabel := "Duration & Latency"
 	if useColor {
@@ -266,11 +448,11 @@ func (r *Report) printTable() {
 		botLabel = styleLabel.Render("Traffic & User-Agent Classification")
 	}
 	_, _ = fmt.Fprintf(w, "%s:\n", botLabel)
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", "Human Requests:", s.HumanRequests, pct(s.HumanRequests, total))
-	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", "Bot / Crawler Requests:", s.BotRequests, pct(s.BotRequests, total))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n", "Human Requests:", s.HumanRequests, Pct(s.HumanRequests, total))
+	_, _ = fmt.Fprintf(w, "  %s\t%d (%.1f%%)\n\n", "Bot / Crawler Requests:", s.BotRequests, Pct(s.BotRequests, total))
 
 	if s.ParseErrors > 0 {
-		_, _ = fmt.Fprintf(w, "%s\t%d\n\n", styleError.Render("Parse Errors:"), s.ParseErrors)
+		_, _ = fmt.Fprintf(w, "%s\t%d\n\n", renderLabel(styleError, "Parse Errors:"), s.ParseErrors)
 	}
 
 	if r.top > 0 {
@@ -329,20 +511,23 @@ func (r *Report) printTable() {
 		}
 	}
 
-	_ = w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	return ew.err
 }
 
-func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
+func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool, ew *errWriter) error {
 	if useColor {
-		_, _ = fmt.Fprintln(r.writer, styleHeader.Render("SECURITY THREAT INSPECTION REPORT"))
-		_, _ = fmt.Fprintln(r.writer, styleDim.Render(strings.Repeat("=", 50)))
+		_, _ = fmt.Fprintln(ew, styleHeader.Render("SECURITY THREAT INSPECTION REPORT"))
+		_, _ = fmt.Fprintln(ew, styleDim.Render(strings.Repeat("=", 50)))
 	} else {
-		_, _ = fmt.Fprintln(r.writer, "SECURITY THREAT INSPECTION REPORT")
-		_, _ = fmt.Fprintln(r.writer, strings.Repeat("=", 50))
+		_, _ = fmt.Fprintln(ew, "SECURITY THREAT INSPECTION REPORT")
+		_, _ = fmt.Fprintln(ew, strings.Repeat("=", 50))
 	}
-	_, _ = fmt.Fprintln(r.writer)
+	_, _ = fmt.Fprintln(ew)
 
-	w := tabwriter.NewWriter(r.writer, 0, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(ew, 0, 0, 3, ' ', 0)
 
 	duration := "N/A"
 	if !s.EndTime.IsZero() && !s.StartTime.IsZero() {
@@ -371,14 +556,14 @@ func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
 		_, _ = fmt.Fprintf(w, "Top Offending IPs:\n")
 		items := analysis.TopN(s.SuspiciousIPs, 10)
 		for _, item := range items {
-			ipLine := fmt.Sprintf("  - %-18s %d malicious requests", item.Key, item.Count)
+			ipLine := fmt.Sprintf("  - %-18s %d malicious requests", stripANSI(item.Key), item.Count)
 			if useColor {
 				ipLine = styleError.Render(ipLine)
 			}
 			_, _ = fmt.Fprintf(w, "%s\n", ipLine)
 			if details, ok := s.SuspiciousDetails[item.Key]; ok && len(details) > 0 {
 				for _, d := range details {
-					detailLine := fmt.Sprintf("       %s", d)
+					detailLine := fmt.Sprintf("       %s", stripANSI(d))
 					if useColor {
 						detailLine = styleWarn.Render(detailLine)
 					}
@@ -395,11 +580,14 @@ func (r *Report) printDetectTable(s *types.Stats, total int64, useColor bool) {
 		_, _ = fmt.Fprintf(w, "%s\n", cleanMsg)
 	}
 
-	_ = w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	return ew.err
 }
 
 func (r *Report) useColor() bool {
-	return r.format == FormatTable && r.writer == os.Stdout
+	return r.format == FormatTable && isTerminalWriter(r.writer)
 }
 
 func renderBarGraph(count, total int64, width int, useColor bool) string {
@@ -425,12 +613,12 @@ func printTopNWithBar(w io.Writer, items []types.CountItem, total int64, useColo
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
 		bar := renderBarGraph(item.Count, total, 12, useColor)
-		_, _ = fmt.Fprintf(tw, "  %d.\t%-35s\t(%d)\t%s\n", i+1, item.Key, item.Count, bar)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%-35s\t(%d)\t%s\n", i+1, stripANSI(item.Key), item.Count, bar)
 	}
 	_ = tw.Flush()
 }
 
-func (r *Report) printJSON() {
+func (r *Report) printJSON() error {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
@@ -440,7 +628,7 @@ func (r *Report) printJSON() {
 			"start": s.StartTime,
 			"end":   s.EndTime,
 		},
-		"filters": r.activeFilters(),
+		"filters":             r.activeFilters(),
 		"requests_per_second": r.engine.RPS(),
 		"status_codes": map[string]interface{}{
 			"2xx":     s.Status2xx,
@@ -456,7 +644,7 @@ func (r *Report) printJSON() {
 		},
 		"response_size": map[string]int64{
 			"total": s.TotalBytes,
-			"avg":   avgSize(s.TotalBytes, total),
+			"avg":   AvgSize(s.TotalBytes, total),
 		},
 		"duration": map[string]float64{
 			"avg": r.engine.AvgDuration(),
@@ -472,6 +660,7 @@ func (r *Report) printJSON() {
 	if r.detect && len(s.SuspiciousIPs) > 0 {
 		data["suspicious_ips"] = analysis.TopN(s.SuspiciousIPs, 20)
 		data["suspicious_details"] = s.SuspiciousDetails
+		data["detections"] = s.SuspiciousDetections
 	}
 
 	if r.top > 0 {
@@ -497,43 +686,57 @@ func (r *Report) printJSON() {
 
 	enc := json.NewEncoder(r.writer)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(data)
+	return enc.Encode(data)
 }
 
-func (r *Report) printCSV() {
+func (r *Report) printCSV() error {
 	s := r.engine.Stats()
 	total := s.TotalRequests
 
-	w := csv.NewWriter(r.writer)
+	ew := &errWriter{w: r.writer}
+	w := csv.NewWriter(ew)
 
-	_ = w.Write([]string{"metric", "value"})
-	for _, fl := range r.activeFilters() {
-		_ = w.Write([]string{"filter", fl})
+	write := func(row []string) {
+		for i, cell := range row {
+			row[i] = SafeCell(cell)
+		}
+		_ = w.Write(row)
 	}
-	_ = w.Write([]string{"total_requests", fmt.Sprintf("%d", total)})
-	_ = w.Write([]string{"rps", fmt.Sprintf("%.2f", r.engine.RPS())})
-	_ = w.Write([]string{"avg_duration_seconds", fmt.Sprintf("%.6f", r.engine.AvgDuration())})
-	_ = w.Write([]string{"status_2xx", fmt.Sprintf("%d", s.Status2xx)})
-	_ = w.Write([]string{"status_3xx", fmt.Sprintf("%d", s.Status3xx)})
-	_ = w.Write([]string{"status_4xx", fmt.Sprintf("%d", s.Status4xx)})
-	_ = w.Write([]string{"status_5xx", fmt.Sprintf("%d", s.Status5xx)})
-	_ = w.Write([]string{"errors", fmt.Sprintf("%d", s.Errors)})
-	_ = w.Write([]string{"human_requests", fmt.Sprintf("%d", s.HumanRequests)})
-	_ = w.Write([]string{"bot_requests", fmt.Sprintf("%d", s.BotRequests)})
-	_ = w.Write([]string{"total_bytes", fmt.Sprintf("%d", s.TotalBytes)})
-	_ = w.Write([]string{"parse_errors", fmt.Sprintf("%d", s.ParseErrors)})
-	_ = w.Write([]string{"duration_p50", fmt.Sprintf("%.6f", s.Percentile50)})
-	_ = w.Write([]string{"duration_p95", fmt.Sprintf("%.6f", s.Percentile95)})
-	_ = w.Write([]string{"duration_p99", fmt.Sprintf("%.6f", s.Percentile99)})
+	writeSection := func(header []string) {
+		_ = w.Write(nil)
+		write(header)
+	}
+	writePair := func(k, v string) {
+		write([]string{k, v})
+	}
+
+	write([]string{"metric", "value"})
+	for _, fl := range r.activeFilters() {
+		writePair("filter", fl)
+	}
+	writePair("total_requests", fmt.Sprintf("%d", total))
+	writePair("rps", fmt.Sprintf("%.2f", r.engine.RPS()))
+	writePair("avg_duration_seconds", fmt.Sprintf("%.6f", r.engine.AvgDuration()))
+	writePair("status_2xx", fmt.Sprintf("%d", s.Status2xx))
+	writePair("status_3xx", fmt.Sprintf("%d", s.Status3xx))
+	writePair("status_4xx", fmt.Sprintf("%d", s.Status4xx))
+	writePair("status_5xx", fmt.Sprintf("%d", s.Status5xx))
+	writePair("errors", fmt.Sprintf("%d", s.Errors))
+	writePair("human_requests", fmt.Sprintf("%d", s.HumanRequests))
+	writePair("bot_requests", fmt.Sprintf("%d", s.BotRequests))
+	writePair("total_bytes", fmt.Sprintf("%d", s.TotalBytes))
+	writePair("parse_errors", fmt.Sprintf("%d", s.ParseErrors))
+	writePair("duration_p50", fmt.Sprintf("%.6f", s.Percentile50))
+	writePair("duration_p95", fmt.Sprintf("%.6f", s.Percentile95))
+	writePair("duration_p99", fmt.Sprintf("%.6f", s.Percentile99))
 
 	if r.detect && len(s.SuspiciousIPs) > 0 {
-		_ = w.Write(nil)
-		_ = w.Write([]string{"suspicious_ips:ip", "count"})
+		writeSection([]string{"suspicious_ips:ip", "count"})
 		for _, item := range analysis.TopN(s.SuspiciousIPs, 20) {
-			_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+			writePair(item.Key, fmt.Sprintf("%d", item.Count))
 			if details, ok := s.SuspiciousDetails[item.Key]; ok {
 				for _, d := range details {
-					_ = w.Write([]string{item.Key + ":detail", d})
+					writePair(item.Key+":detail", d)
 				}
 			}
 		}
@@ -541,22 +744,24 @@ func (r *Report) printCSV() {
 
 	if r.top > 0 {
 		if r.sections.Path {
-			_ = w.Write(nil)
-			_ = w.Write([]string{"top_paths:path", "count"})
+			writeSection([]string{"top_paths:path", "count"})
 			for _, item := range analysis.TopN(s.PathCounts, r.top) {
-				_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+				writePair(item.Key, fmt.Sprintf("%d", item.Count))
 			}
 		}
 		if r.sections.IP {
-			_ = w.Write(nil)
-			_ = w.Write([]string{"top_ips:ip", "count"})
+			writeSection([]string{"top_ips:ip", "count"})
 			for _, item := range analysis.TopN(s.RemoteIPCounts, r.top) {
-				_ = w.Write([]string{item.Key, fmt.Sprintf("%d", item.Count)})
+				writePair(item.Key, fmt.Sprintf("%d", item.Count))
 			}
 		}
 	}
 
 	w.Flush()
+	if err := w.Error(); err != nil {
+		return err
+	}
+	return ew.err
 }
 
 func formatTime(t time.Time) string {
@@ -566,14 +771,20 @@ func formatTime(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
-func pct(n, total int64) float64 {
+// Pct returns n as a percentage of total (0 if total is 0). Shared between the
+// report formatter and the TUI dashboard so the percentage math stays in one
+// place.
+func Pct(n, total int64) float64 {
 	if total == 0 {
 		return 0
 	}
 	return float64(n) / float64(total) * 100
 }
 
-func avgSize(total int64, count int64) int64 {
+// AvgSize returns the average response size given a total byte count and a
+// request count (0 if count is 0). Shared between the report formatter and the
+// TUI dashboard.
+func AvgSize(total int64, count int64) int64 {
 	if count == 0 {
 		return 0
 	}
@@ -594,6 +805,9 @@ func FormatBytes(b int64) string {
 }
 
 func FormatDuration(d float64) string {
+	if d <= 0 || d >= 1e18 {
+		return "N/A"
+	}
 	switch {
 	case d < 0.001:
 		return fmt.Sprintf("%.0f\xc2\xb5s", d*1_000_000)
@@ -614,24 +828,24 @@ func printTopIntN(w io.Writer, items []types.CountIntItem) {
 	_ = tw.Flush()
 }
 
-func TopFieldAnalysis(engine *analysis.Engine, field types.TopField, n int) {
+func TopFieldAnalysis(engine *analysis.Engine, field types.TopField, n int, w io.Writer) {
 	s := engine.Stats()
 
 	switch field {
 	case types.TopPath:
-		printTop(os.Stdout, "Paths", analysis.TopN(s.PathCounts, n))
+		printTop(w, "Paths", analysis.TopN(s.PathCounts, n))
 	case types.TopMethod:
-		printTop(os.Stdout, "Methods", analysis.TopN(s.MethodCounts, n))
+		printTop(w, "Methods", analysis.TopN(s.MethodCounts, n))
 	case types.TopStatus:
-		printTopInt(os.Stdout, "Status Codes", analysis.TopNInt(s.StatusCounts, n))
+		printTopInt(w, "Status Codes", analysis.TopNInt(s.StatusCounts, n))
 	case types.TopHost:
-		printTop(os.Stdout, "Hosts", analysis.TopN(s.HostCounts, n))
+		printTop(w, "Hosts", analysis.TopN(s.HostCounts, n))
 	case types.TopRemoteAddr:
-		printTop(os.Stdout, "Remote Addresses", analysis.TopN(s.RemoteAddrCounts, n))
+		printTop(w, "Remote Addresses", analysis.TopN(s.RemoteAddrCounts, n))
 	case types.TopRemoteIP:
-		printTop(os.Stdout, "Remote IPs", analysis.TopN(s.RemoteIPCounts, n))
+		printTop(w, "Remote IPs", analysis.TopN(s.RemoteIPCounts, n))
 	case types.TopUserAgent:
-		printTop(os.Stdout, "User Agents", analysis.TopN(s.UserAgentCounts, n))
+		printTop(w, "User Agents", analysis.TopN(s.UserAgentCounts, n))
 	}
 }
 
@@ -642,7 +856,7 @@ func printTop(w io.Writer, title string, items []types.CountItem) {
 	_, _ = fmt.Fprintf(w, "Top %s:\n", title)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, item := range items {
-		_, _ = fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, item.Key, item.Count)
+		_, _ = fmt.Fprintf(tw, "  %d.\t%s\t(%d)\n", i+1, stripANSI(item.Key), item.Count)
 	}
 	_ = tw.Flush()
 }
@@ -663,18 +877,24 @@ func listStatus(s int) string {
 	}
 }
 
-func FmtLogEntry(e *types.LogEntry) string {
+func FmtLogEntry(e *types.LogEntry, defang bool) string {
 	timeStr := styleListDim.Render(e.Timestamp.Format("15:04:05"))
 	statusStr := listStatus(e.Status)
-	methodStr := lipgloss.NewStyle().Bold(true).Render(e.Method)
-	pathStr := styleListPath.Render(e.Path())
-	ipStr := styleListIP.Render(e.RemoteIP)
+	methodStr := lipgloss.NewStyle().Bold(true).Render(stripANSI(e.Method))
+	pathStr := stripANSI(e.Path())
+	ipStr := stripANSI(e.RemoteIP)
+	if defang {
+		pathStr = Defang(pathStr)
+		ipStr = Defang(ipStr)
+	}
+	pathStr = styleListPath.Render(pathStr)
+	ipStr = styleListIP.Render(ipStr)
 
 	uaInfo := ""
 	if e.IsBot {
-		uaInfo = fmt.Sprintf(" [%s]", lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render("Bot "+e.BotName))
+		uaInfo = fmt.Sprintf(" [%s]", lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render("Bot "+stripANSI(e.BotName)))
 	} else if e.Browser != "" || e.OS != "" {
-		uaInfo = fmt.Sprintf(" [%s/%s]", e.OS, e.Browser)
+		uaInfo = fmt.Sprintf(" [%s/%s]", stripANSI(e.OS), stripANSI(e.Browser))
 	}
 
 	return fmt.Sprintf("%s  %s  %s %s  (%s, %s) - %s%s",
@@ -685,13 +905,13 @@ func HasEntryFilters(f types.Filters) bool {
 	return len(f.Status) > 0 || f.Method != "" || f.PathGlob != "" || f.Host != "" ||
 		f.RemoteIP != "" || f.ExcludeIP != "" || f.Only2xx || f.Only3xx || f.Only4xx || f.Only5xx ||
 		f.ErrorsOnly || f.NoBots || f.BotsOnly || f.MinLatency > 0 || f.MaxLatency > 0 ||
-		f.GrepPattern != ""
+		f.MinSize > 0 || f.MaxSize > 0 || f.GrepPattern != ""
 }
 
-func PrintLogEntries(entries []*types.LogEntry, w io.Writer) {
+func PrintLogEntries(entries []*types.LogEntry, w io.Writer, defang bool) {
 	for _, e := range entries {
 		if e != nil {
-			_, _ = fmt.Fprintln(w, FmtLogEntry(e))
+			_, _ = fmt.Fprintln(w, FmtLogEntry(e, defang))
 		}
 	}
 }

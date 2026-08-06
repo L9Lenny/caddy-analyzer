@@ -112,7 +112,7 @@
         <li><a href="installation.html"><strong>1. Installation Guide</strong></a> — Detailed installation methods for Linux, macOS, Windows PowerShell, Go toolchain, Docker, systemd, and binary downloads.</li>
         <li><a href="sources.html"><strong>2. Log Sources Guide</strong></a> — In-depth usage guide for files, wildcard globs, stdin pipes, Docker containers (<code>docker://</code>), Kubernetes pods (<code>k8s://</code>), and systemd (<code>journalctl://</code>).</li>
         <li><a href="subcommands.html"><strong>3. Subcommands Reference</strong></a> — Complete reference for <code>tail</code>, <code>top</code>, <code>diff</code>, <code>config</code>, <code>guard</code>, <code>block</code>, and <code>unban</code>.</li>
-        <li><a href="security.html"><strong>4. Threat Engine & Firewall Guard</strong></a> — Full specification of threat detection rules (SQLi, XSS, Path Traversal, Log4j, RCE, Probes, Scanners) and <code>iptables</code> auto-blocking.</li>
+        <li><a href="security.html"><strong>4. Threat Engine & Firewall Guard</strong></a> — Full specification of 26 threat detection categories (SQLi, XSS, Path Traversal, Log4j, RCE, JWT, Beaconing, Probes, Scanners) with MITRE ATT&amp;CK tags, Sigma rule export, IOC defanging, and <code>iptables</code> auto-blocking.</li>
         <li><a href="tui-html.html"><strong>5. TUI Dashboard & HTML Reports</strong></a> — Complete guide to the 6-tab interactive terminal interface (<code>--watch</code>) and standalone dark-mode HTML web reports (<code>-f html</code>).</li>
     </ul>
 
@@ -165,6 +165,28 @@ caddy-analyze diff baseline.log current.log
 # Check or reset default log source configuration
 caddy-analyze config show
 caddy-analyze config reset</pre>
+
+    <h2>Performance</h2>
+    <p>Benchmarks on synthetic Caddy v2 JSON logs (10% attack traffic, single core):</p>
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+        <tr style="background:#1a1a1a;">
+            <th style="text-align:left; padding:6px 10px; border-bottom:1px solid #333;">Log size</th>
+            <th style="text-align:right; padding:6px 10px; border-bottom:1px solid #333;"><code>--detect</code></th>
+            <th style="text-align:right; padding:6px 10px; border-bottom:1px solid #333;">Parse only</th>
+            <th style="text-align:right; padding:6px 10px; border-bottom:1px solid #333;">RAM</th>
+        </tr>
+        <tr><td style="padding:4px 10px;">1.5K lines (real)</td><td style="text-align:right;">0.6s</td><td style="text-align:right;">&lt;0.1s</td><td style="text-align:right;">21 MB</td></tr>
+        <tr><td style="padding:4px 10px;">10K lines</td><td style="text-align:right;">1.5s</td><td style="text-align:right;">0.2s</td><td style="text-align:right;">25 MB</td></tr>
+        <tr><td style="padding:4px 10px;">100K lines</td><td style="text-align:right;">14.3s</td><td style="text-align:right;">1.4s</td><td style="text-align:right;">53 MB</td></tr>
+        <tr><td style="padding:4px 10px;">1M lines</td><td style="text-align:right;">2m29s</td><td style="text-align:right;">~14s</td><td style="text-align:right;">138 MB</td></tr>
+    </table>
+    <p>Throughput: ~7,000 lines/sec with <code>--detect</code>, ~70,000 lines/sec parse-only. Memory scales linearly and is bounded by LRU IP eviction (100K cap) and per-IP path caps (1K). The detection engine uses per-source marker triage, case-fold elimination, and a literal fast path to minimize regex evaluations on benign traffic.</p>
+
+    <h2>Progress Bar &amp; Real-Time Threat Detection</h2>
+    <p>When analyzing files on a TTY, a determinate progress bar is shown: <code>[████████░░░░] 5000/10000 (50%)</code>. Active on <code>caddy-analyze</code> (offline mode), <code>top</code>, and <code>diff</code> (per-file with filename label). Auto-disabled when stderr is redirected to a pipe or file. For non-file sources (stdin, <code>docker://</code>, <code>k8s://</code>, <code>journalctl://</code>) an indeterminate spinner is shown instead. Pre-scan overhead is &lt;3%.</p>
+    <p>The <code>tail</code> subcommand accepts <code>--detect</code> (<code>-d</code>) to run the detection engine on each streamed entry. Suspicious entries have their IP colored by severity (red critical/high, amber medium, olive low) and the attack type appended after a dim <code>→</code> arrow. Clean entries are unchanged — zero visual noise.</p>
+    <pre>caddy-analyze tail --detect docker://my-caddy
+caddy-analyze tail -d --defang /var/log/caddy/access.log</pre>
 
     <div class="footer">
         <p>caddy-analyzer is open-source software released under the <a href="https://github.com/L9Lenny/caddy-analyzer/blob/main/LICENSE">MIT License</a>. Source code on <a href="https://github.com/L9Lenny/caddy-analyzer">GitHub</a>.</p>

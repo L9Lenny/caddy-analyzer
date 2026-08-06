@@ -5,11 +5,42 @@ All notable changes to `caddy-analyzer` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-08-06
+
+### Added
+- **3 new detection categories** (26 total): JWT abuse (`jwt_abuse`), object enumeration/BOLA (`object_enumeration`), beaconing/C2 (`beaconing`). All tagged with MITRE ATT&CK technique IDs.
+- **`export-sigma` subcommand**: exports 23 detection categories as Sigma YAML for SIEM import. Includes MITRE ATT&CK tags and deterministic UUIDs.
+- **`--defang` flag**: defangs IPs (`.` → `[.]`) and URL schemes (`http://` → `hxxp://`) across all commands for safe IOC sharing.
+- **`tail --detect`**: inline threat highlighting on streamed entries. IP colored by severity, attack types appended after a `→` arrow. Clean entries unchanged.
+- **Progress bar**: determinate bar on TTY for file analysis (`caddy-analyze`, `top`, `diff`); indeterminate spinner for non-file sources. Auto-disabled on pipe.
+- **Threat-intel enrichment**: AbuseIPDB client with bounded TTL cache (10K entries). Guard flags: `--enrich`, `--enrich-threshold`.
+- **Guard features**: sliding-window rate limiting, distributed-scan defense (`--subnet-limit`), RPS anomaly alerting (`--rps-anomaly`), credential stuffing detection (`--cred-stuffing-limit`), `--trust-forwarded` for reverse proxy/CDN.
+- **`--state-file` on `block`/`unban`**: manual blocks/unbans sync with guard state file — survive restarts.
+- **Detection engine 2x throughput**: case-fold elimination, per-source marker triage, literal fast path. ~7K lines/sec with `--detect` (was ~3.5K).
+- **Streaming latency histogram**: O(1) log10-spaced buckets replace O(n) slice. Saves ~80MB on million-line logs.
+- **MITRE ATT&CK tags** on all detections. **Structured detections in JSON** output.
+- **New filter flags**: `--host`, `--max-latency`, `--min-size`/`--max-size`, `--max-cardinality`, `--ua-rotation`.
+- **Subcommand flag inheritance**: shared flags (`-t`, `-f`, `-o`, filters) now persistent across `top`, `diff`, `tail`, `config`.
+- **Dedicated iptables chain** (`CADDY_ANALYZER`) with comment marker — `unban` only touches rules created by this tool.
+- **Cosign signature verification** in `install.sh`. **Dockerfile non-root user**. **CI coverage gate** (≥50%).
+
+### Fixed
+- **Guard**: shutdown race losing state on Ctrl+C (now waits for `saveState`); dirty-flag race losing concurrent blocks; `ListBlockedIPs` misleading error on fresh systems; manual `block`/`unban` not synced to state; duplicate iptables rules on double-block; `block`/`unban` always exit 0; `loadState` hitting real iptables in tests.
+- **Detection engine**: zero timestamp corrupting `StartTime`; unbounded `PathTimestamps` per IP (now capped at 1K); FIFO eviction mislabeled as LRU (now true LRU); `extractPureLiterals` dropping 1-char alternatives; `lowercaseFold` missing `OpCharClass`; UA-rotation firing only once; `MinDuration` corrupted by zero/negative durations.
+- **Audit logger**: double-`Close()` panic; goroutine leak after rotation failure; no reopen after write error.
+- **Reader**: follow mode + multiple files only reading first file (now concurrent fan-in).
+- **TUI**: `truncate(s, 0)` panic; negative table height on tiny terminals; `StreamEndMsg` freeze.
+- **Output**: ANSI codes leaking to `-o` files; `-o` creating files with 0666 (now 0600 with dir creation).
+- **Parser**: silent error on Status/Size parse; `classifyUserAgent` rebuilding map every call + non-deterministic BotName.
+- **cmd**: SIGPIPE in `tail | head`; signal goroutine leaks in `root`/`tail`/`guard`; `--top 0` ignored in `top` command.
+- **30+ earlier fixes**: JWT base64 decode, beaconing per-path, defang in follow/interval modes, authFailPaths map leak, ring buffer off-by-one, sigma YAML escaping, enrichment cap, parseInt overflow, math.Sqrt on zero, duration histogram P99, guard busy-loop, partial lines at EOF, journalctl output format, and more (see git log for full detail).
 
 ### Changed
-- **GoReleaser**: Migrated `archives.format` to `archives.formats` and `format_overrides.format` to `format_overrides.formats` (deprecated since v2.6).
-- **install.sh**: Changed pipe command from `| sh` to `| bash` (script uses `pipefail`, not supported by `dash`). Added guard to detect non-bash execution with helpful error message. Fixed checksum verification matching SBOM files by anchoring grep to end of line.
+- **Go 1.24.6** (23 stdlib vulnerabilities fixed).
+- **golangci-lint v2** config format. gosec excludes G401/G501 (MD5 for deterministic UUIDs). gitleaks `.gitleaksignore` for test fixtures.
+- **IP eviction**: true LRU (was FIFO). Enrich cache bounded to 10K entries. File output 0600 with parent dir 0750.
+- **Scanner detection**: `curl`, `wget`, `python-requests` no longer flagged as scanners standalone (too many false positives).
+- **Narrowed false-positive patterns**: SSRF metadata, `.env` path delimiters, SSTI regex escaping, XSS token cleanup.
 
 ## [0.2.0] - 2026-08-01
 
@@ -93,7 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-07-28
 
-### Initial Release 🚀
+### Initial Release
 
 #### Core Features
 - **Native Caddy v2 JSON Parsing**: Zero-config parsing of Caddy's structured log schema including nested TLS versions, request headers, float durations, and status codes.

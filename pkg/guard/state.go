@@ -2,6 +2,7 @@ package guard
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -22,19 +23,22 @@ func newStateFile(path string) *stateFile {
 	return &stateFile{path: path}
 }
 
-func (s *stateFile) load() []stateEntry {
+func (s *stateFile) load() ([]stateEntry, error) {
 	if s == nil || s.path == "" {
-		return nil
+		return nil, nil
 	}
 	data, err := os.ReadFile(s.path)
 	if err != nil {
-		return nil
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	var entries []stateEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil
+		return nil, fmt.Errorf("invalid state json: %w", err)
 	}
-	return entries
+	return entries, nil
 }
 
 func (s *stateFile) saveEntries(entries []stateEntry) error {
@@ -53,5 +57,33 @@ func (s *stateFile) saveEntries(entries []stateEntry) error {
 			return err
 		}
 	}
-	return os.WriteFile(s.path, data, 0600)
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(s.path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, s.path); err != nil {
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
 }

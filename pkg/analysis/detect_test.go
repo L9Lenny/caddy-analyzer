@@ -1,7 +1,9 @@
 package analysis
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/L9Lenny/caddy-analyzer/pkg/types"
 )
@@ -677,7 +679,7 @@ func TestDetectorSignatures(t *testing.T) {
 				UserAgent: "Mozilla/5.0",
 				Status:    200,
 			},
-			expectDet:  false,
+			expectDet: false,
 		},
 		{
 			name: "SSI Injection - exec cmd",
@@ -957,16 +959,123 @@ func TestDetectAllPolyglot(t *testing.T) {
 	}
 }
 
+func TestDetectorMalformedEscapeEvasion(t *testing.T) {
+	detector := NewDetector()
+
+	entry := &types.LogEntry{
+		RemoteIP:  "1.2.3.4",
+		URI:       "/search?q=%zz%3Cscript%3Ealert(1)%3C/script%3E",
+		UserAgent: "Mozilla/5.0",
+		Status:    200,
+	}
+	det := detector.Detect(entry)
+	if det == nil || det.Type != DetXSS {
+		t.Fatalf("expected XSS detection via lenient decode, got %+v", det)
+	}
+}
+
+func TestDetectorUserAgentNoAttackSignals(t *testing.T) {
+	detector := NewDetector()
+
+	entry := &types.LogEntry{
+		RemoteIP:  "1.2.3.4",
+		URI:       "/login",
+		UserAgent: "Mozilla/5.0 (compatible; MyBot/1.0; +or 1=1-- /etc/passwd 169.254.169.254)",
+		Status:    200,
+	}
+	if det := detector.Detect(entry); det != nil {
+		t.Fatalf("UA tokens must not trigger attack detection, got %+v", det)
+	}
+}
+
+func TestDetectorBenignUANotScanner(t *testing.T) {
+	detector := NewDetector()
+
+	for _, ua := range []string{
+		"curl/8.0.1",
+		"Wget/1.21.4",
+		"python-requests/2.31.0",
+		"Go-http-client/1.1",
+	} {
+		entry := &types.LogEntry{
+			RemoteIP:  "1.2.3.4",
+			URI:       "/",
+			UserAgent: ua,
+			Status:    200,
+		}
+		if det := detector.Detect(entry); det != nil {
+			t.Errorf("UA %q must not trigger scanner detection, got %+v", ua, det)
+		}
+	}
+
+	entry := &types.LogEntry{
+		RemoteIP:  "1.2.3.4",
+		URI:       "/",
+		UserAgent: "nuclei/v3.2",
+		Status:    200,
+	}
+	det := detector.Detect(entry)
+	if det == nil || det.Type != DetScanner {
+		t.Fatalf("nuclei UA must trigger scanner detection, got %+v", det)
+	}
+}
+
+func TestDetectorNarrowedPatternsNoFalsePositive(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name string
+		uri  string
+	}{
+		{name: "namespace path is not SSTI", uri: "/api/namespace/list"},
+		{name: "metadata path is not SSRF", uri: "/metadata"},
+		{name: "embedded .env is not sensitive file", uri: "/static/app.env.css"},
+		{name: "query word null is not XSS", uri: "/search?q=null"},
+		{name: "query word undefined is not XSS", uri: "/files/v1?version=undefined"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       tt.uri,
+				UserAgent: "Mozilla/5.0",
+				Status:    200,
+			}
+			if det := detector.Detect(entry); det != nil {
+				t.Errorf("expected no detection for %q, got %+v", tt.uri, det)
+			}
+		})
+	}
+}
+
+func TestDetectorBestSignalWithinCategory(t *testing.T) {
+	detector := NewDetector()
+
+	entry := &types.LogEntry{
+		RemoteIP:  "1.2.3.4",
+		URI:       "/api/users?id=1' OR 1=1-- ;DROP TABLE users--",
+		UserAgent: "Mozilla/5.0",
+		Status:    200,
+	}
+	det := detector.Detect(entry)
+	if det == nil {
+		t.Fatal("expected SQL injection detection")
+	}
+	if det.Confidence != 9 {
+		t.Errorf("expected upgraded confidence 9 (destructive), got %d (%s)", det.Confidence, det.Desc)
+	}
+}
+
 func TestDetectionConfidence(t *testing.T) {
 	detector := NewDetector()
 
 	tests := []struct {
-		name            string
-		uri             string
-		ua              string
-		wantType        DetectionType
-		wantMinConf     int
-		wantMaxConf     int
+		name        string
+		uri         string
+		ua          string
+		wantType    DetectionType
+		wantMinConf int
+		wantMaxConf int
 	}{
 		{
 			name:        "UNION SELECT — high confidence",
@@ -1029,5 +1138,336 @@ func TestDetectionConfidence(t *testing.T) {
 				t.Errorf("expected confidence %d-%d, got %d", tt.wantMinConf, tt.wantMaxConf, det.Confidence)
 			}
 		})
+	}
+}
+
+func TestDetectorBypassCoverage(t *testing.T) {
+	detector := NewDetector()
+
+	tests := []struct {
+		name     string
+		uri      string
+		ua       string
+		wantType DetectionType
+	}{
+		{"RCE backtick substitution", "/?c=`id`", "Mozilla/5.0", DetRCE},
+		{"SQLi comment-bypass UNION SELECT", "/?id=1'/**/UNION/**/ALL/**/SELECT/**/1", "Mozilla/5.0", DetSQLInjection},
+		{"SQLi keyword in inline comment", "/?id=1/*!UNION*//*!SELECT*/1", "Mozilla/5.0", DetSQLInjection},
+		{"SSRF decimal IP host", "/?u=http://3232235521/", "Mozilla/5.0", DetSSRF},
+		{"SQLi UNION DISTINCT SELECT bypass", "/?id=1 UNION DISTINCT SELECT 1,2,3", "Mozilla/5.0", DetSQLInjection},
+		{"SQLi relational tautology bypass", "/?id=1 OR 2>1", "Mozilla/5.0", DetSQLInjection},
+		{"SQLi string tautology bypass", "/?id=1 OR 'a'='a'", "Mozilla/5.0", DetSQLInjection},
+		{"SQLi UNION DISTINCT comment-bypass", "/?id=1'/**/UNION/**/DISTINCT/**/SELECT/**/1", "Mozilla/5.0", DetSQLInjection},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &types.LogEntry{
+				RemoteIP:  "1.2.3.4",
+				URI:       tt.uri,
+				UserAgent: tt.ua,
+				Status:    200,
+			}
+			dets := detector.DetectAll(entry)
+			found := false
+			for _, d := range dets {
+				if d.Type == tt.wantType {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected detection type %s for %q, got %v", tt.wantType, tt.uri, dets)
+			}
+		})
+	}
+}
+
+func TestDetectorUARotation(t *testing.T) {
+	detector := NewDetector()
+	ip := "203.0.113.5"
+
+	for i := 0; i < 9; i++ {
+		entry := &types.LogEntry{RemoteIP: ip, URI: "/", UserAgent: fmt.Sprintf("UA-%d", i), Status: 200}
+		if dets := detector.DetectAll(entry); len(dets) != 0 {
+			t.Fatalf("rotation should not fire before threshold, got %v", dets)
+		}
+	}
+	entry := &types.LogEntry{RemoteIP: ip, URI: "/", UserAgent: "UA-10", Status: 200}
+	dets := detector.DetectAll(entry)
+	found := false
+	for _, d := range dets {
+		if d.Type == DetUARotation {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected ua_rotation detection at 10 distinct UAs, got %v", dets)
+	}
+}
+
+func TestDetectorIPCapEviction(t *testing.T) {
+	detector := NewDetector()
+	detector.SetIPCap(3)
+
+	for i := 0; i < 5; i++ {
+		entry := &types.LogEntry{
+			RemoteIP: fmt.Sprintf("10.0.0.%d", i),
+			URI:      "/",
+			Status:   200,
+		}
+		detector.DetectAll(entry)
+	}
+	if len(detector.ipStats) > 3 {
+		t.Errorf("ipStats should be capped at 3, got %d", len(detector.ipStats))
+	}
+}
+
+// TestCompiledPatternsCached verifies the ~150 detection regexes are compiled
+// exactly once per process and shared across Detector instances, instead of
+// being recompiled on every NewDetector() call (which guard.Tick and the
+// follow/interval/watch windows do every window).
+func TestCompiledPatternsCached(t *testing.T) {
+	a := NewDetector()
+	b := NewDetector()
+	if len(a.patterns) == 0 {
+		t.Fatal("detector has no patterns")
+	}
+	// Same backing slice header => compiled once, shared, not recompiled.
+	if &a.patterns[0] != &b.patterns[0] {
+		t.Fatal("patterns slice is not shared across Detector instances; regexes are being recompiled")
+	}
+	if len(a.patterns) != len(b.patterns) {
+		t.Fatalf("pattern count differs: %d vs %d", len(a.patterns), len(b.patterns))
+	}
+	// rawPatterns is package-level and must also be populated.
+	if len(rawPatterns) == 0 {
+		t.Fatal("rawPatterns is empty; init() did not run")
+	}
+}
+
+func TestDetectorJWTAbuse(t *testing.T) {
+	d := NewDetector()
+	entry := &types.LogEntry{
+		URI:      "/api?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123",
+		RemoteIP: "1.2.3.4",
+		Status:   200,
+	}
+	dets := d.DetectAll(entry)
+	found := false
+	for _, det := range dets {
+		if det.Type == DetJWTAbuse {
+			found = true
+			hasTechnique := false
+			for _, tc := range det.Techniques {
+				if tc == "T1550.001" {
+					hasTechnique = true
+				}
+			}
+			if !hasTechnique {
+				t.Errorf("JWT detection missing MITRE T1550.001, got %v", det.Techniques)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected JWT abuse detection for token in URI")
+	}
+}
+
+func TestDetectorJWTAuthNoneAlg(t *testing.T) {
+	d := NewDetector()
+	entry := &types.LogEntry{
+		URI:           "/api/resource",
+		RemoteIP:      "1.2.3.4",
+		Status:        200,
+		Authorization: `Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.`,
+	}
+	dets := d.DetectAll(entry)
+	found := false
+	for _, det := range dets {
+		if det.Type == DetJWTAbuse {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected JWT abuse detection for alg:none in Authorization")
+	}
+}
+
+func TestDetectorObjectEnumeration(t *testing.T) {
+	d := NewDetector()
+	for i := 1; i <= 10; i++ {
+		entry := &types.LogEntry{
+			URI:       fmt.Sprintf("/api/users/%d", i),
+			RemoteIP:  "1.2.3.4",
+			Status:    200,
+			Timestamp: time.Now(),
+		}
+		d.DetectAll(entry)
+	}
+	entry := &types.LogEntry{
+		URI:       "/api/users/11",
+		RemoteIP:  "1.2.3.4",
+		Status:    200,
+		Timestamp: time.Now(),
+	}
+	dets := d.DetectAll(entry)
+	found := false
+	for _, det := range dets {
+		if det.Type == DetObjectEnum {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected object enumeration detection after 10 sequential IDs")
+	}
+}
+
+func TestDetectorObjectEnumerationNoFalsePositive(t *testing.T) {
+	d := NewDetector()
+	for i := 0; i < 5; i++ {
+		entry := &types.LogEntry{
+			URI:       fmt.Sprintf("/api/users/%d", i+1),
+			RemoteIP:  "1.2.3.4",
+			Status:    200,
+			Timestamp: time.Now(),
+		}
+		d.DetectAll(entry)
+	}
+	entry := &types.LogEntry{
+		URI:       "/api/users/6",
+		RemoteIP:  "1.2.3.4",
+		Status:    200,
+		Timestamp: time.Now(),
+	}
+	dets := d.DetectAll(entry)
+	for _, det := range dets {
+		if det.Type == DetObjectEnum {
+			t.Error("should not fire object enumeration with only 5 IDs")
+		}
+	}
+}
+
+func TestDetectorBeaconing(t *testing.T) {
+	d := NewDetector()
+	base := time.Unix(1000000, 0)
+	for i := 0; i < 12; i++ {
+		entry := &types.LogEntry{
+			URI:       "/api/health",
+			RemoteIP:  "1.2.3.4",
+			Status:    200,
+			Timestamp: base.Add(time.Duration(i) * 60 * time.Second),
+		}
+		d.DetectAll(entry)
+	}
+	entry := &types.LogEntry{
+		URI:       "/api/health",
+		RemoteIP:  "1.2.3.4",
+		Status:    200,
+		Timestamp: base.Add(12 * 60 * time.Second),
+	}
+	dets := d.DetectAll(entry)
+	found := false
+	for _, det := range dets {
+		if det.Type == DetBeaconing {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected beaconing detection for regular 60s intervals")
+	}
+}
+
+func TestDetectorBeaconingNoFalsePositive(t *testing.T) {
+	d := NewDetector()
+	base := time.Unix(1000000, 0)
+	for i := 0; i < 12; i++ {
+		entry := &types.LogEntry{
+			URI:       "/api/random",
+			RemoteIP:  "1.2.3.4",
+			Status:    200,
+			Timestamp: base.Add(time.Duration(i*i) * time.Second),
+		}
+		d.DetectAll(entry)
+	}
+	entry := &types.LogEntry{
+		URI:       "/api/random",
+		RemoteIP:  "1.2.3.4",
+		Status:    200,
+		Timestamp: base.Add(200 * time.Second),
+	}
+	dets := d.DetectAll(entry)
+	for _, det := range dets {
+		if det.Type == DetBeaconing {
+			t.Error("should not fire beaconing for irregular intervals")
+		}
+	}
+}
+
+func TestMITRETechniquesForAll(t *testing.T) {
+	for _, dt := range allDetectionTypes() {
+		techs := TechniquesFor(dt)
+		if len(techs) == 0 {
+			t.Errorf("DetectionType %s has no MITRE techniques", dt)
+		}
+	}
+}
+
+func TestExportSigmaInfo(t *testing.T) {
+	rules := ExportSigmaInfo()
+	if len(rules) == 0 {
+		t.Fatal("expected at least one Sigma rule")
+	}
+	for _, r := range rules {
+		if r.Title == "" {
+			t.Error("Sigma rule missing title")
+		}
+		if len(r.Techniques) == 0 {
+			t.Errorf("Sigma rule %s missing MITRE tags", r.Title)
+		}
+	}
+}
+
+func TestSigmaLevel(t *testing.T) {
+	tests := []struct {
+		conf int
+		want string
+	}{
+		{10, "critical"},
+		{9, "critical"},
+		{7, "high"},
+		{5, "medium"},
+		{3, "low"},
+		{0, "low"},
+	}
+	for _, tt := range tests {
+		if got := SigmaLevel(tt.conf); got != tt.want {
+			t.Errorf("SigmaLevel(%d) = %q, want %q", tt.conf, got, tt.want)
+		}
+	}
+}
+
+func TestExtractIDFromPath(t *testing.T) {
+	tests := []struct {
+		path string
+		tmpl string
+		id   int
+		ok   bool
+	}{
+		{"/api/users/123", "/api/users/{id}", 123, true},
+		{"/api/orders/456?foo=bar", "/api/orders/{id}", 456, true},
+		{"/api/users/abc", "", 0, false},
+		{"/api/users/", "", 0, false},
+		{"/api", "", 0, false},
+	}
+	for _, tt := range tests {
+		tmpl, id, ok := extractIDFromPath(tt.path)
+		if ok != tt.ok {
+			t.Errorf("extractIDFromPath(%q) ok = %v, want %v", tt.path, ok, tt.ok)
+			continue
+		}
+		if ok && (tmpl != tt.tmpl || id != tt.id) {
+			t.Errorf("extractIDFromPath(%q) = (%q, %d), want (%q, %d)", tt.path, tmpl, id, tt.tmpl, tt.id)
+		}
 	}
 }

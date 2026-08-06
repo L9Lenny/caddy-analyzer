@@ -1,9 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -91,6 +93,37 @@ func TestLoadLocalConfig(t *testing.T) {
 	}
 	if cfg.Source != "/custom/path.log" {
 		t.Errorf("expected /custom/path.log, got %q", cfg.Source)
+	}
+}
+
+func TestLoadLocalConfigWithNamespace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "caddy-analyzer.json")
+	data := `{"source": "k8s://my-pod", "namespace": "production"}`
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	cfg, err := loadFile(path)
+	if err != nil {
+		t.Fatalf("loadFile failed: %v", err)
+	}
+	if cfg.Source != "k8s://my-pod" {
+		t.Errorf("expected k8s://my-pod, got %q", cfg.Source)
+	}
+	if cfg.Namespace != "production" {
+		t.Errorf("expected namespace production, got %q", cfg.Namespace)
+	}
+}
+
+func TestConfigNamespaceOmittedWhenEmpty(t *testing.T) {
+	cfg := Config{Source: "/var/log/caddy/access.log"}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if strings.Contains(string(data), "namespace") {
+		t.Errorf("empty namespace must be omitted from JSON, got %s", data)
 	}
 }
 
